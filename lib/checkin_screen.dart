@@ -49,6 +49,13 @@ class _CheckInScreenState extends State<CheckInScreen> {
     final rest = w.characters.skip(1).toList().join().toLowerCase();
     return '$first$rest';
   }
+  String _fmtDur(int mins) {
+  final h = mins ~/ 60, m = mins % 60;
+  if (h > 0 && m > 0) return '${h}h ${m}m';
+  if (h > 0) return '${h}h';
+  return '${m}m';
+}
+
 
   String _titleCase(String s) =>
       _cleanSpaces(s).split(' ').map((p) => p.split('-').map(_capitalizeWord).join('-')).join(' ');
@@ -495,18 +502,15 @@ class _CheckInScreenState extends State<CheckInScreen> {
 
                         const SizedBox(height: 8),
                         Row(
-                          children: [
-                            const Icon(Icons.schedule, size: 18),
-                            const SizedBox(width: 6),
-                            Text(
-                              _etaCalculada == null
-                                  ? 'Calculando ETA...'
-                                  : 'ETA aprox: ${_etaCalculada!.hour.toString().padLeft(2, '0')}:${_etaCalculada!.minute.toString().padLeft(2, '0')}',
-                            ),
-                            const Spacer(),
-                            Text('Precio: \$${_precioSel.toStringAsFixed(0)}'),
-                          ],
-                        ),
+  children: [
+    const Icon(Icons.schedule, size: 18),
+    const SizedBox(width: 6),
+    Text('TE: ${_fmtDur(_durSelMin)}'),
+    const Spacer(),
+    Text('Precio: \$${_precioSel.toStringAsFixed(0)}'),
+  ],
+),
+
 
                         const SizedBox(height: 24),
                         SizedBox(

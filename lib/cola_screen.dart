@@ -364,22 +364,31 @@ class _ColaScreenState extends State<ColaScreen> {
     final veh = (x['vehiculo'] ?? '') as String;
     final srv = (x['servicio'] ?? '') as String;
     final estado = (x['estado'] ?? '') as String;
+    final totalMin = _duracionDeOrden(x);
+
 
     int? secs;
-    String timeLabel = '';
-    if (estado == 'en_cola') {
-      final fin = _etaEndNow[d.id];
-      secs = fin != null ? fin.difference(_now).inSeconds : null;
-      timeLabel = 'Comienza en';
-    } else if (estado == 'en_lavado') {
-      final start = _toDate(x['started_at']) ?? _now;
-      secs = _now.difference(start).inSeconds;
-      timeLabel = 'En lavado';
-    } else if (estado == 'listo') {
-      final fin = _toDate(x['finished_at']) ?? _now;
-      secs = _now.difference(fin).inSeconds;
-      timeLabel = 'Esperando';
-    }
+String timeLabel = '';
+
+
+// TE es fijo por servicio (solo referencia visual)
+// Cronómetro:
+//  - en_lavado  -> "Iniciado: mm:ss" (tiempo transcurrido)
+//  - listo      -> "Esperando: mm:ss" (desde que quedó listo)
+
+if (estado == 'en_lavado') {
+  final start = _toDate(x['started_at']) ?? _now;
+  secs = _now.difference(start).inSeconds; // cronómetro ascendente
+  timeLabel = 'Iniciado';
+} else if (estado == 'listo') {
+  final fin = _toDate(x['finished_at']) ?? _now;
+  secs = _now.difference(fin).inSeconds; // esperando retiro
+  timeLabel = 'Esperando';
+} else {
+  secs = null; // en_cola sin cronómetro ni countdown
+  timeLabel = '';
+}
+
 
     return Material(
       color: Colors.white,
@@ -416,6 +425,10 @@ class _ColaScreenState extends State<ColaScreen> {
                         _stateChip(estado),
                       ],
                     ),
+                    const SizedBox(height: 4),
+Text('TE: ${_fmtMMSS(totalMin * 60)}',
+    style: const TextStyle(fontSize: 12, color: Colors.black54)),
+
                     if (secs != null) ...[
                       const SizedBox(height: 4),
                       Text('$timeLabel: ${_fmtMMSS(secs)}',
