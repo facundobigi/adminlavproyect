@@ -14,10 +14,8 @@ class _ColaScreenState extends State<ColaScreen> {
   // Paleta y tokens
   static const Color kPrimary = Color.fromARGB(255, 21, 53, 117);
   static const Color kBg = Color(0xFFF7F8FA);
-  static const double _panelMaxW = 920;
+  static const double _panelMaxW = 1200;
   static const double _radius = 16;
-
-  static const int _CAPACIDAD_PUESTOS = 4;
 
   final String _uid = FirebaseAuth.instance.currentUser!.uid;
 
@@ -25,18 +23,10 @@ class _ColaScreenState extends State<ColaScreen> {
   DateTime _now = DateTime.now();
 
   final Map<String, int> _durByName = {};
-
-  List<QueryDocumentSnapshot<Map<String, dynamic>>> _enColaDocs = [];
-  List<QueryDocumentSnapshot<Map<String, dynamic>>> _enLavDocs = [];
-  List<QueryDocumentSnapshot<Map<String, dynamic>>> _puestosDocs = [];
-
-  final Map<String, DateTime> _etaEndNow = {};
   final Set<String> _busy = {};
 
   CollectionReference<Map<String, dynamic>> get _ordenesCol =>
       FirebaseFirestore.instance.collection('users').doc(_uid).collection('ordenes');
-  CollectionReference<Map<String, dynamic>> get _puestosCol =>
-      FirebaseFirestore.instance.collection('users').doc(_uid).collection('puestos');
   CollectionReference<Map<String, dynamic>> get _serviciosCol =>
       FirebaseFirestore.instance.collection('users').doc(_uid).collection('servicios');
 
@@ -79,31 +69,6 @@ class _ColaScreenState extends State<ColaScreen> {
     return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
-  bool get _hayPuestos => _puestosDocs.isNotEmpty;
-
-  bool get _hayPuestoLibre {
-    if (_hayPuestos) {
-      for (final d in _puestosDocs) {
-        final x = d.data();
-        if (x['ordenId'] == null) return true;
-      }
-      return false;
-    }
-    return _enLavDocs.length < _CAPACIDAD_PUESTOS;
-  }
-
-  int get _libresCount {
-    if (_hayPuestos) {
-      int c = 0;
-      for (final d in _puestosDocs) {
-        final x = d.data();
-        if (x['ordenId'] == null) c++;
-      }
-      return c;
-    }
-    return (_CAPACIDAD_PUESTOS - _enLavDocs.length).clamp(0, _CAPACIDAD_PUESTOS);
-  }
-
   @override
   void initState() {
     super.initState();
@@ -113,16 +78,13 @@ class _ColaScreenState extends State<ColaScreen> {
         ..clear()
         ..addAll({
           for (final d in s.docs)
-            (d.data()['nombre'] as String):
-                (d.data()['duracion_min'] as num).toInt()
+            (d.data()['nombre'] as String): (d.data()['duracion_min'] as num).toInt()
         });
-      _recomputeEtaNow();
       if (mounted) setState(() {});
     });
 
     _tick = Timer.periodic(const Duration(seconds: 1), (_) {
       _now = DateTime.now();
-      _recomputeEtaNow();
       if (mounted) setState(() {});
     });
   }
@@ -133,143 +95,34 @@ class _ColaScreenState extends State<ColaScreen> {
     super.dispose();
   }
 
-  void _recomputeEtaNow() {
-    final disponibles = <DateTime>[];
-
-    if (_hayPuestos) {
-      for (final d in _puestosDocs) {
-        final x = d.data();
-        final endsAt = _toDate(x['ends_at']);
-        disponibles.add(endsAt ?? _now);
+  Future<void> _iniciarOrden(QueryDocumentSnapshot<Map<String, dynamic>> ordenDoc) async {
+    final ref = ordenDoc.reference;
+    await FirebaseFirestore.instance.runTransaction((t) async {
+      final snap = await t.get(ref);
+      final x = snap.data();
+      if (x == null || x['estado'] != 'en_cola') {
+        throw Exception('NO_EN_COLA');
       }
-      if (disponibles.isEmpty) {
-        for (int i = 0; i < _CAPACIDAD_PUESTOS; i++) {
-          disponibles.add(_now);
-        }
-      }
-    } else {
-      final enLavFines = _enLavDocs.map((d) {
-        final x = d.data();
-        final total = _duracionDeOrden(x);
-        final started = _toDate(x['started_at']) ?? _now;
-        return started.add(Duration(minutes: total));
-      }).toList()
-        ..sort();
-      disponibles.addAll(enLavFines);
-      while (disponibles.length < _CAPACIDAD_PUESTOS) {
-        disponibles.add(_now);
-      }
-    }
-
-    _etaEndNow.clear();
-
-    final ordenados = [..._enColaDocs]
-      ..sort((a, b) {
-        final ad = _toDate(a.data()['created_at']) ??
-            DateTime.fromMillisecondsSinceEpoch(0);
-        final bd = _toDate(b.data()['created_at']) ??
-            DateTime.fromMillisecondsSinceEpoch(0);
-        return ad.compareTo(bd);
-      });
-
-    for (final d in ordenados) {
-      disponibles.sort();
-      final inicio =
-          disponibles.first.isBefore(_now) ? _now : disponibles.first;
-      final total = _duracionDeOrden(d.data());
-      final fin = inicio.add(Duration(minutes: total));
-      _etaEndNow[d.id] = fin;
-      disponibles[0] = fin;
-    }
-  }
-
-  Future<void> _iniciarOrden(
-      QueryDocumentSnapshot<Map<String, dynamic>> ordenDoc) async {
-    final ordenRef = ordenDoc.reference;
-
-    if (_hayPuestos) {
-      final libres = await _puestosCol.where('ordenId', isNull: true).limit(1).get();
-      if (libres.docs.isEmpty) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Sin puestos libres')),
-          );
-        }
-        return;
-      }
-      final puestoRef = libres.docs.first.reference;
-
-      await FirebaseFirestore.instance.runTransaction((t) async {
-        final pSnap = await t.get(puestoRef);
-        final pData = pSnap.data();
-        if (pData != null && pData['ordenId'] != null) {
-          throw Exception('OCUPADO');
-        }
-
-        final oSnap = await t.get(ordenRef);
-        final oData = oSnap.data();
-        if (oData == null || oData['estado'] != 'en_cola') {
-          throw Exception('NO_EN_COLA');
-        }
-
-        t.update(ordenRef, {
-          'estado': 'en_lavado',
-          'puesto': puestoRef.id,
-          'started_at': FieldValue.serverTimestamp(),
-        });
-      }).catchError((_) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Puesto ocupado, reintentá')),
-          );
-        }
-      });
-
-      final x = ordenDoc.data();
-      final mins = _duracionDeOrden(x);
-      final endsAt = DateTime.now().add(Duration(minutes: mins));
-      await puestoRef.update({
-        'ordenId': ordenRef.id,
-        'ends_at': Timestamp.fromDate(endsAt),
-      });
-    } else {
-      if (_enLavDocs.length >= _CAPACIDAD_PUESTOS) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Capacidad completa')),
-          );
-        }
-        return;
-      }
-      await ordenRef.update({
+      t.update(ref, {
         'estado': 'en_lavado',
-        'puesto': null,
         'started_at': FieldValue.serverTimestamp(),
+        'puesto': null,
       });
-    }
+    }).catchError((_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No se pudo iniciar, reintentá')),
+        );
+      }
+    });
   }
 
-  Future<void> _marcarListo(
-      QueryDocumentSnapshot<Map<String, dynamic>> doc) async {
-    final x = doc.data();
-    final puestoId = (x['puesto'] ?? '') as String?;
-    if (_hayPuestos && puestoId != null && puestoId.isNotEmpty) {
-      final puestoRef = _puestosCol.doc(puestoId);
-      await FirebaseFirestore.instance.runTransaction((t) async {
-        t.update(doc.reference, {
-          'estado': 'listo',
-          'finished_at': FieldValue.serverTimestamp(),
-          'puesto': null,
-        });
-        t.update(puestoRef, {'ordenId': null, 'ends_at': null});
-      });
-    } else {
-      await doc.reference.update({
-        'estado': 'listo',
-        'finished_at': FieldValue.serverTimestamp(),
-        'puesto': null,
-      });
-    }
+  Future<void> _marcarListo(QueryDocumentSnapshot<Map<String, dynamic>> doc) async {
+    await doc.reference.update({
+      'estado': 'listo',
+      'finished_at': FieldValue.serverTimestamp(),
+      'puesto': null,
+    });
   }
 
   Future<void> _entregarYCobrar(
@@ -343,7 +196,7 @@ class _ColaScreenState extends State<ColaScreen> {
     final txt = map[e] ?? e;
     final c = _stateColor(e);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
         color: c.withOpacity(.10),
         border: Border.all(color: c.withOpacity(.25)),
@@ -353,10 +206,7 @@ class _ColaScreenState extends State<ColaScreen> {
     );
   }
 
-  Widget _orderCard(
-    QueryDocumentSnapshot<Map<String, dynamic>> d, {
-    required bool hayLibre,
-  }) {
+  Widget _orderCard(QueryDocumentSnapshot<Map<String, dynamic>> d) {
     final x = d.data();
     final cli = _asMapDyn(x['cliente_snapshot'] ?? x['cliente'] ?? {});
     final nombre = (cli['nombre'] ?? '') as String;
@@ -366,29 +216,18 @@ class _ColaScreenState extends State<ColaScreen> {
     final estado = (x['estado'] ?? '') as String;
     final totalMin = _duracionDeOrden(x);
 
-
     int? secs;
-String timeLabel = '';
+    String timeLabel = '';
 
-
-// TE es fijo por servicio (solo referencia visual)
-// Cronómetro:
-//  - en_lavado  -> "Iniciado: mm:ss" (tiempo transcurrido)
-//  - listo      -> "Esperando: mm:ss" (desde que quedó listo)
-
-if (estado == 'en_lavado') {
-  final start = _toDate(x['started_at']) ?? _now;
-  secs = _now.difference(start).inSeconds; // cronómetro ascendente
-  timeLabel = 'Iniciado';
-} else if (estado == 'listo') {
-  final fin = _toDate(x['finished_at']) ?? _now;
-  secs = _now.difference(fin).inSeconds; // esperando retiro
-  timeLabel = 'Esperando';
-} else {
-  secs = null; // en_cola sin cronómetro ni countdown
-  timeLabel = '';
-}
-
+    if (estado == 'en_lavado') {
+      final start = _toDate(x['started_at']) ?? _now;
+      secs = _now.difference(start).inSeconds;
+      timeLabel = 'Iniciado';
+    } else if (estado == 'listo') {
+      final fin = _toDate(x['finished_at']) ?? _now;
+      secs = _now.difference(fin).inSeconds;
+      timeLabel = 'Esperando';
+    }
 
     return Material(
       color: Colors.white,
@@ -410,25 +249,31 @@ if (estado == 'en_lavado') {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('$nombre • $veh',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                     const SizedBox(height: 4),
-                    Row(
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 6,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        Icon(Icons.local_car_wash, size: 14, color: kPrimary),
-                        const SizedBox(width: 4),
-                        Text(srv, style: const TextStyle(fontSize: 12, color: Colors.black87)),
-                        const SizedBox(width: 10),
-                        Icon(Icons.phone, size: 14, color: Colors.black45),
-                        const SizedBox(width: 4),
-                        Text(tel, style: const TextStyle(fontSize: 12, color: Colors.black54)),
-                        const SizedBox(width: 10),
+                        Row(mainAxisSize: MainAxisSize.min, children: [
+                          Icon(Icons.local_car_wash, size: 14, color: kPrimary),
+                          const SizedBox(width: 4),
+                          Text(srv, style: const TextStyle(fontSize: 12, color: Colors.black87)),
+                        ]),
+                        Row(mainAxisSize: MainAxisSize.min, children: [
+                          Icon(Icons.phone, size: 14, color: Colors.black45),
+                          const SizedBox(width: 4),
+                          Text(tel, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                        ]),
                         _stateChip(estado),
                       ],
                     ),
                     const SizedBox(height: 4),
-Text('TE: ${_fmtMMSS(totalMin * 60)}',
-    style: const TextStyle(fontSize: 12, color: Colors.black54)),
-
+                    Text('TE: ${_fmtMMSS(totalMin * 60)}',
+                        style: const TextStyle(fontSize: 12, color: Colors.black54)),
                     if (secs != null) ...[
                       const SizedBox(height: 4),
                       Text('$timeLabel: ${_fmtMMSS(secs)}',
@@ -437,41 +282,25 @@ Text('TE: ${_fmtMMSS(totalMin * 60)}',
                   ],
                 ),
               ),
+              const SizedBox(width: 8),
               // Acciones
               if (estado == 'en_cola')
-                ElevatedButton.icon(
-                  onPressed: (!hayLibre || _isBusy(d.id)) ? null : () => _guard(() => _iniciarOrden(d), d.id),
-                  icon: const Icon(Icons.play_arrow, size: 18),
-                  label: const Text('Iniciar'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: kPrimary,
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
+                _btnPrimary(
+                  icon: Icons.play_arrow,
+                  label: 'Iniciar',
+                  onTap: _isBusy(d.id) ? null : () => _guard(() => _iniciarOrden(d), d.id),
                 ),
               if (estado == 'en_lavado')
-                ElevatedButton.icon(
-                  onPressed: _isBusy(d.id) ? null : () => _guard(() => _marcarListo(d), d.id),
-                  icon: const Icon(Icons.check_circle, size: 18),
-                  label: const Text('Listo'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF10B981),
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
+                _btnSuccess(
+                  icon: Icons.check_circle,
+                  label: 'Listo',
+                  onTap: _isBusy(d.id) ? null : () => _guard(() => _marcarListo(d), d.id),
                 ),
               if (estado == 'listo')
-                OutlinedButton.icon(
-                  onPressed: _isBusy(d.id) ? null : () => _guard(() => _entregarYCobrar(context, d), d.id),
-                  icon: const Icon(Icons.attach_money, size: 18),
-                  label: const Text('Cobrar'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: kPrimary,
-                    side: const BorderSide(color: kPrimary),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
+                _btnOutline(
+                  icon: Icons.attach_money,
+                  label: 'Cobrar',
+                  onTap: _isBusy(d.id) ? null : () => _guard(() => _entregarYCobrar(context, d), d.id),
                 ),
             ],
           ),
@@ -494,197 +323,162 @@ Text('TE: ${_fmtMMSS(totalMin * 60)}',
         .where('estado', isEqualTo: 'listo')
         .orderBy('finished_at', descending: true);
 
-    final puestosStream = _puestosCol.snapshots();
+    final textScaler = MediaQuery.textScalerOf(context).clamp(minScaleFactor: 0.9, maxScaleFactor: 1.2);
 
-    return Scaffold(
-      backgroundColor: kBg,
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.white,
-        iconTheme: const IconThemeData(color: kPrimary),
-        titleTextStyle: const TextStyle(
-          color: kPrimary,
-          fontSize: 20,
-          fontWeight: FontWeight.w600,
+    return MediaQuery(
+      data: MediaQuery.of(context).copyWith(textScaler: textScaler),
+      child: Scaffold(
+        backgroundColor: kBg,
+        appBar: AppBar(
+          elevation: 0,
+          backgroundColor: Colors.white,
+          iconTheme: const IconThemeData(color: kPrimary),
+          titleTextStyle: const TextStyle(
+            color: kPrimary,
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+          ),
+          title: const Text('Cola de trabajo'),
+          centerTitle: true,
         ),
-        title: const Text('Cola de trabajo'),
-        centerTitle: true,
-      ),
-      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: puestosStream,
-        builder: (_, sp) {
-          if (sp.hasError) {
-            return Center(child: Text('Error: ${sp.error}', style: const TextStyle(color: Colors.red)));
-          }
-          _puestosDocs = sp.data?.docs ?? <QueryDocumentSnapshot<Map<String, dynamic>>>[];
-          _recomputeEtaNow();
-          final hayLibre = _hayPuestoLibre;
+        body: SafeArea(
+          child: LayoutBuilder(
+            builder: (_, c) {
+              final padH = c.maxWidth >= 900 ? 24.0 : 16.0;
 
-          return Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: _panelMaxW),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Barra azul + puestos libres
-                    Container(
-                      height: 48,
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      decoration: BoxDecoration(
-                        color: kPrimary,
-                        borderRadius: BorderRadius.circular(_radius),
-                      ),
-                      child: Row(
+              Widget section(
+                String title,
+                IconData icon,
+                Stream<QuerySnapshot<Map<String, dynamic>>> stream, {
+                String empty = '—',
+              }) {
+                return _SectionCard(
+                  title: title,
+                  icon: icon,
+                  child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                    stream: stream,
+                    builder: (_, s) {
+                      if (s.hasError) {
+                        return Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Text('Error: ${s.error}', style: const TextStyle(color: Colors.red)),
+                        );
+                      }
+                      if (!s.hasData) {
+                        return const SizedBox(height: 64, child: Center(child: CircularProgressIndicator()));
+                      }
+                      final docs = s.data!.docs;
+                      if (docs.isEmpty) {
+                        return Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Text(empty),
+                        );
+                      }
+                      return ListView.separated(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: docs.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 8),
+                        itemBuilder: (_, i) => _orderCard(docs[i]),
+                      );
+                    },
+                  ),
+                );
+              }
+
+              final enColaW = section('En cola', Icons.hourglass_bottom, colaQ.snapshots(), empty: 'Sin autos en cola');
+              final enLavW = section('En lavado', Icons.local_car_wash, enLavQ.snapshots(), empty: '—');
+              final listosW = section('Para retirar', Icons.check_circle, listosQ.snapshots(), empty: '—');
+
+              return Align(
+                alignment: Alignment.topCenter,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: _panelMaxW),
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(padH, 16, padH, 16),
+                    child: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          const Icon(Icons.playlist_add_check, color: Colors.white),
-                          const SizedBox(width: 8),
-                          const Text('Cola de trabajo',
-                              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
-                          const Spacer(),
+                          // Barra azul
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            height: 48,
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(.12),
-                              borderRadius: BorderRadius.circular(10),
+                              color: kPrimary,
+                              borderRadius: BorderRadius.circular(_radius),
                             ),
-                            child: Row(
+                            child: const Row(
                               children: [
-                                Icon(
-                                  hayLibre ? Icons.check_circle : Icons.block,
-                                  size: 16,
-                                  color: Colors.white,
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  'Puestos libres: ${_libresCount.toString()}',
-                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-                                ),
+                                Icon(Icons.playlist_add_check, color: Colors.white),
+                                SizedBox(width: 8),
+                                Text('Cola de trabajo',
+                                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
                               ],
                             ),
                           ),
+                          const SizedBox(height: 12),
+
+                          // Siempre 1 columna (apilado) para mantener la vista original
+                          enColaW,
+                          const SizedBox(height: 12),
+                          enLavW,
+                          const SizedBox(height: 12),
+                          listosW,
                         ],
                       ),
                     ),
-                    const SizedBox(height: 12),
-
-                    // En cola
-                    _SectionCard(
-                      title: 'En cola',
-                      icon: Icons.hourglass_bottom,
-                      child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                        stream: colaQ.snapshots(),
-                        builder: (_, s) {
-                          if (s.hasError) {
-                            return Padding(
-                              padding: const EdgeInsets.all(8.0),
-                              child: Text('Error: ${s.error}', style: const TextStyle(color: Colors.red)),
-                            );
-                          }
-                          if (!s.hasData) {
-                            return const SizedBox(height: 64, child: Center(child: CircularProgressIndicator()));
-                          }
-                          _enColaDocs = s.data!.docs;
-                          _recomputeEtaNow();
-                          if (_enColaDocs.isEmpty) {
-                            return const Padding(
-                              padding: EdgeInsets.all(8.0),
-                              child: Text('Sin autos en cola'),
-                            );
-                          }
-                          return Column(
-                            children: _enColaDocs
-                                .map((d) => Padding(
-                                      padding: const EdgeInsets.only(bottom: 8),
-                                      child: _orderCard(d, hayLibre: hayLibre),
-                                    ))
-                                .toList(),
-                          );
-                        },
-                      ),
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    // En lavado
-                    _SectionCard(
-                      title: 'En lavado',
-                      icon: Icons.local_car_wash,
-                      child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                        stream: enLavQ.snapshots(),
-                        builder: (_, s) {
-                          if (s.hasError) {
-                            return Padding(
-                              padding: const EdgeInsets.all(8.0),
-                              child: Text('Error: ${s.error}', style: const TextStyle(color: Colors.red)),
-                            );
-                          }
-                          if (!s.hasData) {
-                            return const SizedBox(height: 64, child: Center(child: CircularProgressIndicator()));
-                          }
-                          _enLavDocs = s.data!.docs;
-                          _recomputeEtaNow();
-                          if (_enLavDocs.isEmpty) {
-                            return const Padding(
-                              padding: EdgeInsets.all(8.0),
-                              child: Text('—'),
-                            );
-                          }
-                          return Column(
-                            children: _enLavDocs
-                                .map((d) => Padding(
-                                      padding: const EdgeInsets.only(bottom: 8),
-                                      child: _orderCard(d, hayLibre: hayLibre),
-                                    ))
-                                .toList(),
-                          );
-                        },
-                      ),
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    // Para retirar
-                    _SectionCard(
-                      title: 'Para retirar',
-                      icon: Icons.check_circle,
-                      child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                        stream: listosQ.snapshots(),
-                        builder: (_, s) {
-                          if (s.hasError) {
-                            return Padding(
-                              padding: const EdgeInsets.all(8.0),
-                              child: Text('Error: ${s.error}', style: const TextStyle(color: Colors.red)),
-                            );
-                          }
-                          if (!s.hasData) {
-                            return const SizedBox(height: 64, child: Center(child: CircularProgressIndicator()));
-                          }
-                          final items = s.data!.docs;
-                          if (items.isEmpty) {
-                            return const Padding(
-                              padding: EdgeInsets.all(8.0),
-                              child: Text('—'),
-                            );
-                          }
-                          return Column(
-                            children: items
-                                .map((d) => Padding(
-                                      padding: const EdgeInsets.only(bottom: 8),
-                                      child: _orderCard(d, hayLibre: hayLibre),
-                                    ))
-                                .toList(),
-                          );
-                        },
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
-            ),
-          );
-        },
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Botones
+  Widget _btnPrimary({required IconData icon, required String label, VoidCallback? onTap}) {
+    return ElevatedButton.icon(
+      onPressed: onTap,
+      icon: Icon(icon, size: 18),
+      label: Text(label),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: kPrimary,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        minimumSize: const Size(112, 40),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
+  Widget _btnSuccess({required IconData icon, required String label, VoidCallback? onTap}) {
+    return ElevatedButton.icon(
+      onPressed: onTap,
+      icon: Icon(icon, size: 18),
+      label: Text(label),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: const Color(0xFF10B981),
+        foregroundColor: Colors.white,
+        elevation: 0,
+        minimumSize: const Size(112, 40),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
+  Widget _btnOutline({required IconData icon, required String label, VoidCallback? onTap}) {
+    return OutlinedButton.icon(
+      onPressed: onTap,
+      icon: Icon(icon, size: 18),
+      label: Text(label),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: kPrimary,
+        side: const BorderSide(color: kPrimary),
+        minimumSize: const Size(112, 40),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }
@@ -726,6 +520,10 @@ class _SectionCard extends StatelessWidget {
     );
   }
 }
+
+
+
+
 
 
 

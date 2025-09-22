@@ -35,7 +35,7 @@ class _CheckInScreenState extends State<CheckInScreen> {
   double _precioSel = 0;
 
   // Estado
-  static const int _CAPACIDAD_PUESTOS = 2;
+  
   bool _saving = false;
   DateTime? _etaCalculada;
 
@@ -139,51 +139,15 @@ class _CheckInScreenState extends State<CheckInScreen> {
 
   // ------- ETA dinámica -------
   Future<void> _calcularETA() async {
-    setState(() => _etaCalculada = null);
-    final now = DateTime.now();
+  setState(() => _etaCalculada = null);
+  final now = DateTime.now();
 
-    // catálogo del usuario
-    final catSnap = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(_uid)
-        .collection('servicios')
-        .get();
+  // leer duración del servicio elegido (ya la tenés en _durSelMin)
+  setState(() {
+    _etaCalculada = now.add(Duration(minutes: _durSelMin));
+  });
+}
 
-    final Map<String, int> dur = {
-      for (final d in catSnap.docs)
-        (d.data()['nombre'] as String): (d.data()['duracion_min'] as num).toInt()
-    };
-
-    int trabajoPendienteMin = 0;
-
-    final baseOrdenes = FirebaseFirestore.instance
-        .collection('users')
-        .doc(_uid)
-        .collection('ordenes');
-
-    final qCola = await baseOrdenes.where('estado', isEqualTo: 'en_cola').get();
-    for (final d in qCola.docs) {
-      final nombreSrv = (d['servicio'] ?? '') as String;
-      trabajoPendienteMin += (dur[nombreSrv] ?? 40);
-    }
-
-    final qLav = await baseOrdenes.where('estado', isEqualTo: 'en_lavado').get();
-    for (final d in qLav.docs) {
-      final nombreSrv = (d['servicio'] ?? '') as String;
-      final total = (dur[nombreSrv] ?? 40);
-      final ts = d['started_at'];
-      final started = ts is Timestamp ? ts.toDate() : null;
-      final rem = started == null
-          ? total
-          : (total - now.difference(started).inMinutes).clamp(0, total);
-      trabajoPendienteMin += rem;
-    }
-
-    final esperaMin = (trabajoPendienteMin / _CAPACIDAD_PUESTOS).ceil();
-    setState(() {
-      _etaCalculada = now.add(Duration(minutes: esperaMin + _durSelMin));
-    });
-  }
 
   Future<void> _guardar() async {
     if (!_formKey.currentState!.validate()) return;

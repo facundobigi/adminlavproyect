@@ -72,7 +72,7 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
   Future<void> _cargar() async {
     setState(() => _loading = true);
     try {
-      final qs = await _buildQuery().limit(500).get(); // suficiente para un día normal
+      final qs = await _buildQuery().limit(500).get();
       _all = qs.docs;
       _aplicarBusqueda();
     } catch (e) {
@@ -143,79 +143,96 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
     if (v is Timestamp) return v.toDate();
     if (v is DateTime) return v;
     return null;
-    }
+  }
 
   // ===== UI =====
   @override
   Widget build(BuildContext context) {
-    final fechaLabel = '${DateFormat('dd/MM/yyyy').format(_range.start)} – ${DateFormat('dd/MM/yyyy').format(_range.end.subtract(const Duration(milliseconds: 1)))}';
+    final fechaLabel =
+        '${DateFormat('dd/MM/yyyy').format(_range.start)} – ${DateFormat('dd/MM/yyyy').format(_range.end.subtract(const Duration(milliseconds: 1)))}';
 
-    return Scaffold(
-      backgroundColor: kBg,
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.white,
-        titleTextStyle: const TextStyle(color: kPrimary, fontSize: 20, fontWeight: FontWeight.w600),
-        iconTheme: const IconThemeData(color: kPrimary),
-        title: const Text('Resumen de lavados'),
-        centerTitle: true,
-      ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: _panelMaxW),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Barra azul
-                Container(
-                  height: 56,
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  decoration: BoxDecoration(color: kPrimary, borderRadius: BorderRadius.circular(_radius)),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.list_alt, color: Colors.white),
-                      const SizedBox(width: 8),
-                      const Text('Entregas', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
-                      const Spacer(),
-                      InkWell(
-                        onTap: _pickRange,
-                        borderRadius: BorderRadius.circular(10),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.calendar_today, color: Colors.white, size: 18),
-                              const SizedBox(width: 6),
-                              Text(fechaLabel, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
+    final scaler = MediaQuery.textScalerOf(context).clamp(minScaleFactor: 0.9, maxScaleFactor: 1.2);
 
-                _filtrosCard(),
-                const SizedBox(height: 12),
-
-                _kpisRow(),
-                const SizedBox(height: 12),
-
-                Expanded(
-                  child: _loading
-                      ? const Center(child: CircularProgressIndicator())
-                      : _items.isEmpty
-                          ? const Center(child: Text('Sin resultados'))
-                          : ListView.separated(
-                              itemCount: _items.length,
-                              separatorBuilder: (_, __) => const SizedBox(height: 8),
-                              itemBuilder: (_, i) => _rowCard(_items[i]),
+    return MediaQuery(
+      data: MediaQuery.of(context).copyWith(textScaler: scaler),
+      child: Scaffold(
+        backgroundColor: kBg,
+        appBar: AppBar(
+          elevation: 0,
+          backgroundColor: Colors.white,
+          titleTextStyle: const TextStyle(color: kPrimary, fontSize: 20, fontWeight: FontWeight.w600),
+          iconTheme: const IconThemeData(color: kPrimary),
+          title: const Text('Resumen de lavados'),
+          centerTitle: true,
+        ),
+        body: SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: _panelMaxW),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Barra azul
+                    Container(
+                      height: 56,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(color: kPrimary, borderRadius: BorderRadius.circular(_radius)),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.list_alt, color: Colors.white),
+                          const SizedBox(width: 8),
+                          const Text('Entregas',
+                              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+                          const Spacer(),
+                          InkWell(
+                            onTap: _pickRange,
+                            borderRadius: BorderRadius.circular(10),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.calendar_today, color: Colors.white, size: 18),
+                                  const SizedBox(width: 6),
+                                  // Evita overflow en móviles
+                                  Flexible(
+                                    child: Text(
+                                      fechaLabel,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    _filtrosCard(),
+                    const SizedBox(height: 12),
+
+                    _kpisGrid(),
+                    const SizedBox(height: 12),
+
+                    Expanded(
+                      child: _loading
+                          ? const Center(child: CircularProgressIndicator())
+                          : _items.isEmpty
+                              ? const Center(child: Text('Sin resultados'))
+                              : ListView.separated(
+                                  itemCount: _items.length,
+                                  separatorBuilder: (_, __) => const SizedBox(height: 8),
+                                  itemBuilder: (_, i) => _rowCard(_items[i]),
+                                ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ),
@@ -227,27 +244,28 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
   Widget _filtrosCard() {
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(_radius), boxShadow: const [
-        BoxShadow(color: Color(0x11000000), blurRadius: 10, offset: Offset(0, 3))
-      ]),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(_radius),
+        boxShadow: const [BoxShadow(color: Color(0x11000000), blurRadius: 10, offset: Offset(0, 3))],
+      ),
       child: Column(
         children: [
           // Rápidos
-          Row(
-            children: [
+          LayoutBuilder(builder: (_, c) {
+            final wrap = c.maxWidth < 520;
+            final chips = [
               _quick('Hoy', () {
                 final s = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
                 _range = DateTimeRange(start: s, end: s.add(const Duration(days: 1)));
                 _cargar();
               }),
-              const SizedBox(width: 8),
               _quick('Ayer', () {
                 final s = DateTime.now().subtract(const Duration(days: 1));
                 final d = DateTime(s.year, s.month, s.day);
                 _range = DateTimeRange(start: d, end: d.add(const Duration(days: 1)));
                 _cargar();
               }),
-              const SizedBox(width: 8),
               _quick('Semana', () {
                 final now = DateTime.now();
                 final s = now.subtract(Duration(days: now.weekday - 1));
@@ -255,7 +273,6 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
                 _range = DateTimeRange(start: start, end: start.add(const Duration(days: 7)));
                 _cargar();
               }),
-              const SizedBox(width: 8),
               _quick('Mes', () {
                 final n = DateTime.now();
                 final start = DateTime(n.year, n.month, 1);
@@ -263,15 +280,30 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
                 _range = DateTimeRange(start: start, end: end);
                 _cargar();
               }),
-              const Spacer(),
-              TextButton.icon(
-                onPressed: _cargar,
-                icon: const Icon(Icons.refresh),
-                label: const Text('Actualizar'),
-                style: TextButton.styleFrom(foregroundColor: kPrimary),
-              ),
-            ],
-          ),
+            ];
+            final right = TextButton.icon(
+              onPressed: _cargar,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Actualizar'),
+              style: TextButton.styleFrom(foregroundColor: kPrimary),
+            );
+
+            if (!wrap) {
+              return Row(children: [
+                ...List.generate(chips.length, (i) => Row(children: [if (i > 0) const SizedBox(width: 8), chips[i]])),
+                const Spacer(),
+                right,
+              ]);
+            }
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Wrap(spacing: 8, runSpacing: 8, children: chips),
+                const SizedBox(height: 8),
+                Align(alignment: Alignment.centerRight, child: right),
+              ],
+            );
+          }),
           const SizedBox(height: 12),
           // Línea de filtros
           FutureBuilder<QuerySnapshot<Map<String, dynamic>>>(
@@ -307,7 +339,8 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
                     child: DropdownButtonFormField<String>(
                       value: _servicio,
                       items: servicios
-                          .map((e) => DropdownMenuItem(value: e, child: Text(e == 'todos' ? 'Todos los servicios' : e)))
+                          .map((e) =>
+                              DropdownMenuItem(value: e, child: Text(e == 'todos' ? 'Todos los servicios' : e)))
                           .toList(),
                       onChanged: (v) => setState(() => _servicio = v ?? 'todos'),
                       decoration: const InputDecoration(labelText: 'Servicio', border: OutlineInputBorder()),
@@ -333,7 +366,9 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
                     child: ElevatedButton(
                       onPressed: () => _cargar(),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: kPrimary, foregroundColor: Colors.white, elevation: 0,
+                        backgroundColor: kPrimary,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       ),
                       child: const Text('Aplicar'),
@@ -362,7 +397,8 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
     );
   }
 
-  Widget _kpisRow() {
+  // KPIs responsive en grilla
+  Widget _kpisGrid() {
     String dFmt(Duration d) {
       final h = d.inHours;
       final m = d.inMinutes.remainder(60);
@@ -370,46 +406,64 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
     }
 
     Widget card(String label, String value, IconData icon) {
-      return Expanded(
-        child: Card(
-          elevation: 0,
-          color: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            child: Row(
-              children: [
-                Icon(icon, color: kPrimary),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      return Card(
+        elevation: 0,
+        color: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              Icon(icon, color: kPrimary),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Text(label, style: const TextStyle(fontSize: 12, color: Colors.black54)),
                     const SizedBox(height: 2),
                     Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-                  ]),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       );
     }
 
-    return Row(
-      children: [
-        card('Lavados', '$kLavados', Icons.local_car_wash),
-        const SizedBox(width: 8),
-        card('Ingresos', _money.format(kIngresos), Icons.payments),
-        const SizedBox(width: 8),
-        card('Efectivo', _money.format(kEfec), Icons.attach_money),
-        const SizedBox(width: 8),
-        card('Transferencia', _money.format(kTransf), Icons.swap_horiz),
-        const SizedBox(width: 8),
-        card('Espera prom.', dFmt(kEsperaProm), Icons.hourglass_bottom),
-        const SizedBox(width: 8),
-        card('Lavado prom.', dFmt(kLavadoProm), Icons.timer),
-      ],
-    );
+    final items = <Widget>[
+      card('Lavados', '$kLavados', Icons.local_car_wash),
+      card('Ingresos', _money.format(kIngresos), Icons.payments),
+      card('Efectivo', _money.format(kEfec), Icons.attach_money),
+      card('Transferencia', _money.format(kTransf), Icons.swap_horiz),
+      card('Espera prom.', dFmt(kEsperaProm), Icons.hourglass_bottom),
+      card('Lavado prom.', dFmt(kLavadoProm), Icons.timer),
+    ];
+
+    return LayoutBuilder(builder: (context, c) {
+      final w = c.maxWidth;
+      int cols;
+      if (w < 420) {
+        cols = 1;
+      } else if (w < 740) {
+        cols = 2;
+      } else if (w < 980) {
+        cols = 3;
+      } else {
+        cols = 3; // compactos y legibles
+      }
+
+      return GridView.count(
+        crossAxisCount: cols,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
+        childAspectRatio: 3.4,
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        children: items,
+      );
+    });
   }
 
   Widget _rowCard(QueryDocumentSnapshot<Map<String, dynamic>> d) {
@@ -453,8 +507,10 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
                   Row(children: [
                     Icon(Icons.access_time, size: 14, color: kPrimary),
                     const SizedBox(width: 4),
-                    Text(delivered == null ? '-' : DateFormat('dd/MM HH:mm').format(delivered),
-                        style: const TextStyle(fontSize: 12, color: Colors.black87)),
+                    Text(
+                      delivered == null ? '-' : DateFormat('dd/MM HH:mm').format(delivered),
+                      style: const TextStyle(fontSize: 12, color: Colors.black87),
+                    ),
                     const SizedBox(width: 10),
                     Icon(Icons.local_car_wash, size: 14, color: kPrimary),
                     const SizedBox(width: 4),
@@ -462,7 +518,10 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
                     const SizedBox(width: 10),
                     Icon(Icons.phone, size: 14, color: Colors.black45),
                     const SizedBox(width: 4),
-                    Text(tel, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                    Flexible(
+                      child: Text(tel, overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                    ),
                   ]),
                   const SizedBox(height: 4),
                   Row(children: [
@@ -574,3 +633,4 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
     );
   }
 }
+

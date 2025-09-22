@@ -14,7 +14,6 @@ import 'servicios_screen.dart';
 import 'resumen_gastos_screen.dart';
 import 'resumen_lavados_screen.dart';
 
-
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
   @override
@@ -42,7 +41,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   double porcLav = 0.40;
 
-  final NumberFormat _money = NumberFormat.currency(locale: 'es_AR', symbol: '\$');
+  final NumberFormat _money =
+      NumberFormat.currency(locale: 'es_AR', symbol: '\$');
   String fmt(num v) {
     final s = _money.format(v.abs());
     return v < 0 ? '-$s' : s;
@@ -55,7 +55,7 @@ class _HomeScreenState extends State<HomeScreen> {
   static const Color kRed = Color(0xFFC62828);
   static const Color kBg = Color(0xFFF7F8FA);
 
-  // Números monoespaciados para alinear montos
+  // Números
   static const _numStyle = TextStyle(
     fontSize: 16,
     fontWeight: FontWeight.w700,
@@ -63,8 +63,8 @@ class _HomeScreenState extends State<HomeScreen> {
   );
 
   // Layout tokens
-  static const double _sideW = 320;         // ancho sidebar
-  static const double _panelMaxW = 640;     // ancho máximo panel para alinear
+  static const double _sideW = 320;
+  static const double _panelMaxW = 640;
   static const double _radius = 16;
 
   @override
@@ -119,9 +119,18 @@ class _HomeScreenState extends State<HomeScreen> {
       (s, d) => s + ((d.data()['monto'] as num?)?.toDouble() ?? 0.0),
     );
 
-    final enCola = await _userRef.collection('ordenes').where('estado', isEqualTo: 'en_cola').get();
-    final enLav = await _userRef.collection('ordenes').where('estado', isEqualTo: 'en_lavado').get();
-    final listos = await _userRef.collection('ordenes').where('estado', isEqualTo: 'listo').get();
+    final enCola = await _userRef
+        .collection('ordenes')
+        .where('estado', isEqualTo: 'en_cola')
+        .get();
+    final enLav = await _userRef
+        .collection('ordenes')
+        .where('estado', isEqualTo: 'en_lavado')
+        .get();
+    final listos = await _userRef
+        .collection('ordenes')
+        .where('estado', isEqualTo: 'listo')
+        .get();
 
     setState(() {
       totalLavados = qs.size;
@@ -141,7 +150,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _editarPorcLav() async {
-    final ctrl = TextEditingController(text: (porcLav * 100).toStringAsFixed(0));
+    final ctrl =
+        TextEditingController(text: (porcLav * 100).toStringAsFixed(0));
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -149,11 +159,16 @@ class _HomeScreenState extends State<HomeScreen> {
         content: TextField(
           controller: ctrl,
           keyboardType: TextInputType.number,
-          decoration: const InputDecoration(suffixText: '%', hintText: '0–100'),
+          decoration:
+              const InputDecoration(suffixText: '%', hintText: '0–100'),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
-          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Guardar')),
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancelar')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Guardar')),
         ],
       ),
     );
@@ -172,7 +187,8 @@ class _HomeScreenState extends State<HomeScreen> {
         });
       } else {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Valor 0–100')));
+          ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Valor 0–100')));
         }
       }
     }
@@ -185,7 +201,8 @@ class _HomeScreenState extends State<HomeScreen> {
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 180),
         pageBuilder: (_, __, ___) => page,
-        transitionsBuilder: (_, a, __, child) => FadeTransition(opacity: a, child: child),
+        transitionsBuilder: (_, a, __, child) =>
+            FadeTransition(opacity: a, child: child),
       ),
     ).then((_) => cargarResumenDelDia());
   }
@@ -193,97 +210,134 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final fechaStr = DateFormat('dd/MM/yyyy').format(today);
+    final scaler =
+        MediaQuery.textScalerOf(context).clamp(minScaleFactor: 0.9, maxScaleFactor: 1.2);
+    final h = MediaQuery.sizeOf(context).height;
+    final compact = h < 720; // modo compacto automático
 
-    return Scaffold(
-      backgroundColor: kBg,
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.white,
-        title: Row(children: [
-          SizedBox(height: 56, child: Image.asset('assets/admin.lav1.png')),
-        ]),
-        actions: [
-          IconButton(
-            tooltip: 'Salir',
-            onPressed: () => FirebaseAuth.instance.signOut(),
-            icon: const Icon(Icons.logout),
-          ),
-        ],
+    return MediaQuery(
+      data: MediaQuery.of(context).copyWith(textScaler: scaler),
+      child: Scaffold(
+        backgroundColor: kBg,
+        appBar: AppBar(
+          elevation: 0,
+          backgroundColor: Colors.white,
+          title: Row(children: [
+            SizedBox(height: compact ? 44 : 56, child: Image.asset('assets/admin.lav1.png')),
+          ]),
+          actions: [
+            IconButton(
+              tooltip: 'Salir',
+              onPressed: () => FirebaseAuth.instance.signOut(),
+              icon: const Icon(Icons.logout),
+            ),
+          ],
+        ),
+        body: SafeArea(
+          child: cargando
+              ? const Center(child: CircularProgressIndicator())
+              : LayoutBuilder(builder: (context, c) {
+                  final wide = c.maxWidth >= 980;
+                  return Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 1140),
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(
+                            horizontal: 16, vertical: compact ? 12 : 24),
+                        child: wide
+                            ? _wideLayout(fechaStr, compact: compact)
+                            : _narrowLayout(fechaStr, compact: compact),
+                      ),
+                    ),
+                  );
+                }),
+        ),
       ),
-      body: cargando
-          ? const Center(child: CircularProgressIndicator())
-          : LayoutBuilder(builder: (context, c) {
-              final wide = c.maxWidth >= 980;
-              return Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 1140),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-                    child: wide ? _wideLayout(fechaStr) : _narrowLayout(fechaStr),
-                  ),
-                ),
-              );
-            }),
     );
   }
 
-  // ===== Layouts =====
-  Widget _wideLayout(String fechaStr) {
+  // ===== Layouts sin scroll =====
+  Widget _wideLayout(String fechaStr, {required bool compact}) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Izquierda: acciones (alineada por top con el panel)
+        // Izquierda
         SizedBox(
           width: _sideW,
           child: Column(
             children: [
-              _tilePrimary(Icons.person_add_alt_1, 'Check in', () => _go(const CheckInScreen())),
-              const SizedBox(height: 12),
-              _tilePrimary(Icons.playlist_add_check, 'Cola de trabajo', () => _go(const ColaScreen())),
-              const SizedBox(height: 12),
-              _tileAccent(Icons.receipt_long, 'Registrar Gasto', () => _go(const RegistroGastoScreen())),
-              const SizedBox(height: 12),
-              _tileSecondary(Icons.query_stats, 'Ver Balance', () => _go(const BalanceScreen())),
-              const SizedBox(height: 12),
-              _tileSecondary(Icons.settings, 'Gestionar servicios', () => _go(const ServiciosScreen())),
+              _tilePrimary(Icons.person_add_alt_1, 'Check in',
+                  () => _go(const CheckInScreen())),
+              SizedBox(height: compact ? 8 : 12),
+              _tilePrimary(Icons.playlist_add_check, 'Cola de trabajo',
+                  () => _go(const ColaScreen())),
+              SizedBox(height: compact ? 8 : 12),
+              _tileAccent(Icons.receipt_long, 'Registrar Gasto',
+                  () => _go(const RegistroGastoScreen())),
+              SizedBox(height: compact ? 8 : 12),
+              _tileSecondary(Icons.query_stats, 'Ver Balance',
+                  () => _go(const BalanceScreen())),
+              SizedBox(height: compact ? 8 : 12),
+              _tileSecondary(Icons.settings, 'Gestionar servicios',
+                  () => _go(const ServiciosScreen())),
+              SizedBox(height: compact ? 8 : 12),
+              // NUEVO botón fuera del cuadro: Resumen lavados
+              _tileSecondary(Icons.list_alt, 'Resumen de lavados',
+                  () => _go(const ResumenLavadosScreen())),
             ],
           ),
         ),
         const SizedBox(width: 24),
-        // Derecha: panel con ancho fijo para alinear visualmente con el sidebar
-        SizedBox(width: _panelMaxW, child: _panel(fechaStr)),
+        // Derecha: panel (sin scroll)
+        SizedBox(width: _panelMaxW, child: _panel(fechaStr, compact: compact)),
       ],
     );
   }
 
-  Widget _narrowLayout(String fechaStr) {
+  Widget _narrowLayout(String fechaStr, {required bool compact}) {
     return Column(
       children: [
-        ConstrainedBox(constraints: const BoxConstraints(maxWidth: _panelMaxW), child: _panel(fechaStr)),
-        const SizedBox(height: 24),
-        _tilePrimary(Icons.person_add_alt_1, 'Check in', () => _go(const CheckInScreen())),
-        const SizedBox(height: 12),
-        _tilePrimary(Icons.playlist_add_check, 'Cola de trabajo', () => _go(const ColaScreen())),
-        const SizedBox(height: 12),
-        _tileAccent(Icons.receipt_long, 'Registrar Gasto', () => _go(const RegistroGastoScreen())),
-        const SizedBox(height: 12),
-        _tileSecondary(Icons.query_stats, 'Ver Balance', () => _go(const BalanceScreen())),
-        const SizedBox(height: 12),
-        _tileSecondary(Icons.settings, 'Gestionar servicios', () => _go(const ServiciosScreen())),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: _panelMaxW),
+          child: _panel(fechaStr, compact: compact),
+        ),
+        SizedBox(height: compact ? 16 : 24),
+        _tilePrimary(Icons.person_add_alt_1, 'Check in',
+            () => _go(const CheckInScreen())),
+        SizedBox(height: compact ? 8 : 12),
+        _tilePrimary(Icons.playlist_add_check, 'Cola de trabajo',
+            () => _go(const ColaScreen())),
+        SizedBox(height: compact ? 8 : 12),
+        _tileAccent(Icons.receipt_long, 'Registrar Gasto',
+            () => _go(const RegistroGastoScreen())),
+        SizedBox(height: compact ? 8 : 12),
+        _tileSecondary(Icons.query_stats, 'Ver Balance',
+            () => _go(const BalanceScreen())),
+        SizedBox(height: compact ? 8 : 12),
+        _tileSecondary(Icons.settings, 'Gestionar servicios',
+            () => _go(const ServiciosScreen())),
+        SizedBox(height: compact ? 8 : 12),
+        // NUEVO botón fuera del cuadro
+        _tileSecondary(Icons.list_alt, 'Resumen de lavados',
+            () => _go(const ResumenLavadosScreen())),
       ],
     );
   }
 
-  // ===== Panel derecho =====
-  Widget _panel(String fechaStr) {
+  // ===== Panel =====
+  Widget _panel(String fechaStr, {required bool compact}) {
+    final double headerH = compact ? 48.0 : 56.0;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Header azul compacto (sin botón "Ayer")
+        // Header azul
         Container(
-          height: 56,
+          height: headerH,
           padding: const EdgeInsets.symmetric(horizontal: 12),
-          decoration: BoxDecoration(color: const Color.fromARGB(255, 23, 56, 122), borderRadius: BorderRadius.circular(_radius)),
+          decoration: BoxDecoration(
+            color: const Color.fromARGB(255, 23, 56, 122),
+            borderRadius: BorderRadius.circular(_radius),
+          ),
           child: Row(
             children: [
               _circleIcon(
@@ -294,9 +348,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 },
               ),
               const SizedBox(width: 8),
-              const Text(
+              Text(
                 'Resumen Diario',
-                style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: compact ? 16 : 18,
+                    fontWeight: FontWeight.w600),
               ),
               const Spacer(),
               InkWell(
@@ -314,15 +371,21 @@ class _HomeScreenState extends State<HomeScreen> {
                   }
                 },
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding:
+                      EdgeInsets.symmetric(horizontal: 10, vertical: compact ? 4 : 6),
                   child: Row(
                     children: [
                       const Icon(Icons.calendar_month, color: Colors.white, size: 18),
                       const SizedBox(width: 6),
                       AnimatedSwitcher(
                         duration: const Duration(milliseconds: 160),
-                        transitionBuilder: (c, a) =>
-                            FadeTransition(opacity: a, child: SlideTransition(position: a.drive(Tween(begin: const Offset(0, .1), end: Offset.zero)), child: c)),
+                        transitionBuilder: (c, a) => FadeTransition(
+                          opacity: a,
+                          child: SlideTransition(
+                            position: a.drive(Tween(begin: const Offset(0, .1), end: Offset.zero)),
+                            child: c,
+                          ),
+                        ),
                         child: Text(
                           fechaStr,
                           key: ValueKey(fechaStr),
@@ -344,47 +407,42 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
         ),
-        const SizedBox(height: 14),
+        SizedBox(height: compact ? 10 : 14),
 
         // Card resumen
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+          padding: EdgeInsets.symmetric(horizontal: compact ? 16 : 20, vertical: compact ? 14 : 18),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(_radius),
-            boxShadow: const [BoxShadow(color: Color(0x11000000), blurRadius: 10, offset: Offset(0, 3))],
+            boxShadow: const [
+              BoxShadow(color: Color(0x11000000), blurRadius: 10, offset: Offset(0, 3))
+            ],
           ),
           child: Column(
             children: [
+              // Lavados (SIN botón aquí)
               Padding(
-  padding: const EdgeInsets.symmetric(vertical: 6),
-  child: Row(
-    children: [
-      const Text('Lavados', style: TextStyle(fontSize: 16)),
-      const SizedBox(width: 6),
-      TextButton.icon(
-        onPressed: () => _go(const ResumenLavadosScreen()),
-        icon: const Icon(Icons.list_alt, size: 18),
-        label: const Text('resumen', style: TextStyle(fontSize: 12)),
-        style: TextButton.styleFrom(
-          foregroundColor: kPrimary,
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-        ),
-      ),
-      const Spacer(),
-      DefaultTextStyle.merge(
-        style: _numStyle,
-        child: _animNum('$totalLavados'),
-      ),
-    ],
-  ),
-),
+                padding: EdgeInsets.symmetric(vertical: compact ? 4 : 6),
+                child: Row(
+                  children: [
+                    const Text('Lavados', style: TextStyle(fontSize: 16)),
+                    const Spacer(),
+                    DefaultTextStyle.merge(
+                      style: _numStyle.copyWith(fontSize: compact ? 15 : 16),
+                      child: _animNum('$totalLavados'),
+                    ),
+                  ],
+                ),
+              ),
               _row('Efectivo', _animNum(fmt(totalEfectivo))),
               _row('Transferencia', _animNum(fmt(totalTransferencia))),
               _row('Total ingresos', _animNum(fmt(ingresosTotales), bold: true)),
               const SizedBox(height: 10),
               const Divider(height: 24, color: Color(0xFFEAECEF)),
-              _rowWithAction(
+
+              // GASTOS con botón al lado del título (izquierda)
+              _rowWithActionLeft(
                 'Gastos',
                 _animNum(fmt(totalGastos)),
                 icon: Icons.receipt_long,
@@ -394,29 +452,47 @@ class _HomeScreenState extends State<HomeScreen> {
                       .then((_) => cargarResumenDelDia());
                 },
               ),
-              _rowWithAction(
+
+              // PAGO LAVADORES con botón al lado del título (izquierda)
+              _rowWithActionLeft(
                 'Pago a lavadores (${(porcLav * 100).round()}%)',
                 _animNum(fmt(pagoLavadores)),
                 icon: Icons.edit,
                 label: 'editar',
                 onPressed: _editarPorcLav,
               ),
-              const SizedBox(height: 12),
+
+              SizedBox(height: compact ? 8 : 12),
               _cierreCinta(cierreEfectivo),
             ],
           ),
         ),
 
-        const SizedBox(height: 12),
+        SizedBox(height: compact ? 8 : 12),
 
         // KPIs
         Row(
           children: [
-            Expanded(child: _kpiCard(Icons.hourglass_bottom, enColaCount, 'En cola', const Color(0xFFF59E0B), onTap: () => _go(const ColaScreen()))),
+            Expanded(
+              child: _kpiCard(Icons.hourglass_bottom, enColaCount, 'En cola',
+                  const Color(0xFFF59E0B),
+                  compact: compact,
+                  onTap: () => _go(const ColaScreen())),
+            ),
             const SizedBox(width: 8),
-            Expanded(child: _kpiCard(Icons.local_car_wash, enLavCount, 'En lavado', const Color(0xFF3B82F6), onTap: () => _go(const ColaScreen()))),
+            Expanded(
+              child: _kpiCard(Icons.local_car_wash, enLavCount, 'En lavado',
+                  const Color(0xFF3B82F6),
+                  compact: compact,
+                  onTap: () => _go(const ColaScreen())),
+            ),
             const SizedBox(width: 8),
-            Expanded(child: _kpiCard(Icons.check_circle, listosCount, 'Listos', const Color(0xFF10B981), onTap: () => _go(const ColaScreen()))),
+            Expanded(
+              child: _kpiCard(Icons.check_circle, listosCount, 'Listos',
+                  const Color(0xFF10B981),
+                  compact: compact,
+                  onTap: () => _go(const ColaScreen())),
+            ),
           ],
         ),
       ],
@@ -448,21 +524,28 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _rowWithAction(String l, Widget r,
+  // NUEVO: acción a la izquierda (junto al título)
+  Widget _rowWithActionLeft(String l, Widget r,
       {required IconData icon, required String label, required VoidCallback onPressed}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [
-          Expanded(child: Text(l, style: const TextStyle(fontSize: 16))),
-          DefaultTextStyle.merge(style: _numStyle, child: r),
-          const SizedBox(width: 8),
-          TextButton.icon(
-            onPressed: onPressed,
-            icon: Icon(icon, size: 18),
-            label: Text(label, style: const TextStyle(fontSize: 12)),
-            style: TextButton.styleFrom(foregroundColor: kPrimary),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(l, style: const TextStyle(fontSize: 16)),
+              const SizedBox(width: 8),
+              TextButton.icon(
+                onPressed: onPressed,
+                icon: Icon(icon, size: 18),
+                label: Text(label, style: const TextStyle(fontSize: 12)),
+                style: TextButton.styleFrom(foregroundColor: kPrimary, padding: const EdgeInsets.symmetric(horizontal: 10)),
+              ),
+            ],
           ),
+          const Spacer(),
+          DefaultTextStyle.merge(style: _numStyle, child: r),
         ],
       ),
     );
@@ -491,7 +574,8 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _kpiCard(IconData icon, int valor, String etiqueta, Color topBar, {VoidCallback? onTap}) {
+  Widget _kpiCard(IconData icon, int valor, String etiqueta, Color topBar,
+      {VoidCallback? onTap, bool compact = false}) {
     final child = Card(
       elevation: 0,
       color: Colors.white,
@@ -506,26 +590,26 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12),
+            padding: EdgeInsets.symmetric(vertical: compact ? 8 : 12),
             child: Column(
               children: [
-                Icon(icon, size: 20, color: kPrimary),
-                const SizedBox(height: 6),
+                Icon(icon, size: compact ? 18 : 20, color: kPrimary),
+                SizedBox(height: compact ? 4 : 6),
                 AnimatedSwitcher(
                   duration: const Duration(milliseconds: 150),
                   transitionBuilder: (c, a) => FadeTransition(opacity: a, child: c),
                   child: Text(
                     '$valor',
                     key: ValueKey(valor),
-                    style: const TextStyle(
-                      fontSize: 18,
+                    style: TextStyle(
+                      fontSize: compact ? 16 : 18,
                       fontWeight: FontWeight.w800,
-                      fontFeatures: [FontFeature.tabularFigures()],
+                      fontFeatures: const [FontFeature.tabularFigures()],
                     ),
                   ),
                 ),
-                const SizedBox(height: 2),
-                Text(etiqueta, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                SizedBox(height: compact ? 1 : 2),
+                Text(etiqueta, style: TextStyle(fontSize: compact ? 11 : 12, color: Colors.black54)),
               ],
             ),
           ),
@@ -603,6 +687,9 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 }
+
+
+
 
 
 
