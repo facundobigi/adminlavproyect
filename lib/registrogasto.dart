@@ -1,11 +1,12 @@
 // registrogasto.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 class RegistroGastoScreen extends StatefulWidget {
-  const RegistroGastoScreen({super.key});
+  final String tenantId; // UID del dueño
+  final String role;     // 'admin' | 'operator'
+  const RegistroGastoScreen({super.key, required this.tenantId, required this.role});
 
   @override
   State<RegistroGastoScreen> createState() => _RegistroGastoScreenState();
@@ -17,27 +18,29 @@ class _RegistroGastoScreenState extends State<RegistroGastoScreen> {
   final _montoController = TextEditingController();
   bool _isLoading = false;
 
-  final String _uid = FirebaseAuth.instance.currentUser!.uid;
-
-  // Paleta y tokens coherentes
+  // Paleta y tokens
   static const Color kPrimary = Color.fromARGB(255, 20, 52, 117);
   static const Color kBg = Color(0xFFF7F8FA);
-  static const double _panelMaxW = 720; // un poco más ancho para desktop
+  static const double _panelMaxW = 720;
   static const double _radius = 16;
+
+  CollectionReference<Map<String, dynamic>> get _gastosCol =>
+      FirebaseFirestore.instance.collection('users').doc(widget.tenantId).collection('gastos');
 
   Future<void> guardarGasto() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
 
     try {
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(_uid)
-          .collection('gastos')
-          .add({
-        'descripcion': _descripcionController.text.trim(),
-        'monto': double.parse(_montoController.text.trim()),
+      final descripcion = _descripcionController.text.trim();
+      final monto = double.parse(_montoController.text.trim());
+
+      await _gastosCol.add({
+        'descripcion': descripcion,
+        'monto': monto,
         'fecha': FieldValue.serverTimestamp(),
+        'created_at': FieldValue.serverTimestamp(),
+        'created_by_role': widget.role,
       });
 
       if (mounted) Navigator.pop(context);
@@ -156,12 +159,9 @@ class _RegistroGastoScreenState extends State<RegistroGastoScreen> {
                                 prefixText: '\$ ',
                                 border: OutlineInputBorder(),
                               ),
-                              keyboardType: const TextInputType.numberWithOptions(
-                                  decimal: true),
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
                               inputFormatters: [
-                                // permite números con hasta 2 decimales
-                                FilteringTextInputFormatter.allow(
-                                    RegExp(r'^\d*\.?\d{0,2}')),
+                                FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
                               ],
                               validator: (value) {
                                 final monto = double.tryParse(value ?? '');
@@ -184,7 +184,6 @@ class _RegistroGastoScreenState extends State<RegistroGastoScreen> {
                                 ),
                                 const SizedBox(height: 16),
 
-                                // Responsive: en wide, dos columnas; en narrow, apilado
                                 if (wide)
                                   Row(
                                     children: [
@@ -201,7 +200,6 @@ class _RegistroGastoScreenState extends State<RegistroGastoScreen> {
 
                                 const SizedBox(height: 24),
 
-                                // Botón guardar (full en móvil, fijo en desktop)
                                 Align(
                                   alignment: Alignment.center,
                                   child: SizedBox(
@@ -250,6 +248,7 @@ class _RegistroGastoScreenState extends State<RegistroGastoScreen> {
     );
   }
 }
+
 
 
 

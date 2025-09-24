@@ -1,11 +1,13 @@
 // cola_screen.dart
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 class ColaScreen extends StatefulWidget {
-  const ColaScreen({super.key});
+  final String tenantId; // UID del dueño
+  final String role;     // 'admin' | 'operator'
+  const ColaScreen({super.key, required this.tenantId, required this.role});
+
   @override
   State<ColaScreen> createState() => _ColaScreenState();
 }
@@ -17,8 +19,6 @@ class _ColaScreenState extends State<ColaScreen> {
   static const double _panelMaxW = 1200;
   static const double _radius = 16;
 
-  final String _uid = FirebaseAuth.instance.currentUser!.uid;
-
   Timer? _tick;
   DateTime _now = DateTime.now();
 
@@ -26,9 +26,9 @@ class _ColaScreenState extends State<ColaScreen> {
   final Set<String> _busy = {};
 
   CollectionReference<Map<String, dynamic>> get _ordenesCol =>
-      FirebaseFirestore.instance.collection('users').doc(_uid).collection('ordenes');
+      FirebaseFirestore.instance.collection('users').doc(widget.tenantId).collection('ordenes');
   CollectionReference<Map<String, dynamic>> get _serviciosCol =>
-      FirebaseFirestore.instance.collection('users').doc(_uid).collection('servicios');
+      FirebaseFirestore.instance.collection('users').doc(widget.tenantId).collection('servicios');
 
   bool _isBusy(String id) => _busy.contains(id);
   Future<void> _guard(Future<void> Function() f, String id) async {
@@ -146,6 +146,7 @@ class _ColaScreenState extends State<ColaScreen> {
             items: const [
               DropdownMenuItem(value: 'efectivo', child: Text('Efectivo')),
               DropdownMenuItem(value: 'transferencia', child: Text('Transferencia')),
+              DropdownMenuItem(value: 'otro', child: Text('Otro')),
             ],
             onChanged: (v) => tipo = v ?? 'efectivo',
             decoration: const InputDecoration(labelText: 'Medio de pago'),
@@ -198,8 +199,8 @@ class _ColaScreenState extends State<ColaScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
-        color: c.withOpacity(.10),
-        border: Border.all(color: c.withOpacity(.25)),
+        color: c.withValues(alpha: .10),
+        border: Border.all(color: c.withValues(alpha: .25)),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(txt, style: TextStyle(fontSize: 12, color: c, fontWeight: FontWeight.w600)),
@@ -210,15 +211,19 @@ class _ColaScreenState extends State<ColaScreen> {
     final x = d.data();
     final cli = _asMapDyn(x['cliente_snapshot'] ?? x['cliente'] ?? {});
     final nombre = (cli['nombre'] ?? '') as String;
+    final apellido = (cli['apellido'] ?? '') as String;
+    final nombreCompleto = [nombre, apellido].where((e) => (e).trim().isNotEmpty).join(' ').trim().isEmpty
+        ? ((cli['nombre_completo'] ?? '') as String)
+        : '$nombre $apellido';
     final tel = (cli['telefono'] ?? '') as String;
     final veh = (x['vehiculo'] ?? '') as String;
+    final patente = (x['patente'] ?? '') as String;
     final srv = (x['servicio'] ?? '') as String;
     final estado = (x['estado'] ?? '') as String;
     final totalMin = _duracionDeOrden(x);
 
     int? secs;
     String timeLabel = '';
-
     if (estado == 'en_lavado') {
       final start = _toDate(x['started_at']) ?? _now;
       secs = _now.difference(start).inSeconds;
@@ -248,10 +253,12 @@ class _ColaScreenState extends State<ColaScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('$nombre • $veh',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                    Text(
+                      patente.trim().isEmpty ? '$nombreCompleto • $veh' : '$nombreCompleto • $patente • $veh',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    ),
                     const SizedBox(height: 4),
                     Wrap(
                       spacing: 10,
@@ -268,6 +275,12 @@ class _ColaScreenState extends State<ColaScreen> {
                           const SizedBox(width: 4),
                           Text(tel, style: const TextStyle(fontSize: 12, color: Colors.black54)),
                         ]),
+                        if (patente.trim().isNotEmpty)
+                          Row(mainAxisSize: MainAxisSize.min, children: [
+                            Icon(Icons.numbers, size: 14, color: Colors.black45),
+                            const SizedBox(width: 4),
+                            Text(patente, style: const TextStyle(fontSize: 12, color: Colors.black87)),
+                          ]),
                         _stateChip(estado),
                       ],
                     ),
@@ -311,17 +324,9 @@ class _ColaScreenState extends State<ColaScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final colaQ = _ordenesCol
-        .where('estado', isEqualTo: 'en_cola')
-        .orderBy('created_at', descending: true);
-
-    final enLavQ = _ordenesCol
-        .where('estado', isEqualTo: 'en_lavado')
-        .orderBy('started_at', descending: true);
-
-    final listosQ = _ordenesCol
-        .where('estado', isEqualTo: 'listo')
-        .orderBy('finished_at', descending: true);
+    final colaQ = _ordenesCol.where('estado', isEqualTo: 'en_cola').orderBy('created_at', descending: true);
+    final enLavQ = _ordenesCol.where('estado', isEqualTo: 'en_lavado').orderBy('started_at', descending: true);
+    final listosQ = _ordenesCol.where('estado', isEqualTo: 'listo').orderBy('finished_at', descending: true);
 
     final textScaler = MediaQuery.textScalerOf(context).clamp(minScaleFactor: 0.9, maxScaleFactor: 1.2);
 
@@ -419,7 +424,7 @@ class _ColaScreenState extends State<ColaScreen> {
                           ),
                           const SizedBox(height: 12),
 
-                          // Siempre 1 columna (apilado) para mantener la vista original
+                          // Apilado
                           enColaW,
                           const SizedBox(height: 12),
                           enLavW,
@@ -520,6 +525,7 @@ class _SectionCard extends StatelessWidget {
     );
   }
 }
+
 
 
 

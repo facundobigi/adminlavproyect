@@ -28,7 +28,7 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
     start: DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day),
     end: DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day).add(const Duration(days: 1)),
   );
-  String _pago = 'todos'; // todos | efectivo | transferencia
+  String _pago = 'todos'; // todos | efectivo | transferencia | otro
   String _servicio = 'todos'; // nombre de servicio o 'todos'
   final _buscaCtrl = TextEditingController();
 
@@ -93,7 +93,10 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
         final cli = (x['cliente_snapshot'] ?? {}) as Map<String, dynamic>;
         final s = [
           (cli['nombre'] ?? '').toString(),
+          (cli['apellido'] ?? '').toString(),
+          (cli['nombre_completo'] ?? '').toString(),
           (cli['telefono'] ?? '').toString(),
+          (x['patente'] ?? '').toString(),
           (x['vehiculo'] ?? '').toString(),
           (x['servicio'] ?? '').toString(),
         ].join(' ').toLowerCase();
@@ -196,7 +199,6 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
                                 children: [
                                   const Icon(Icons.calendar_today, color: Colors.white, size: 18),
                                   const SizedBox(width: 6),
-                                  // Evita overflow en móviles
                                   Flexible(
                                     child: Text(
                                       fechaLabel,
@@ -328,6 +330,7 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
                         DropdownMenuItem(value: 'todos', child: Text('Todos los pagos')),
                         DropdownMenuItem(value: 'efectivo', child: Text('Solo efectivo')),
                         DropdownMenuItem(value: 'transferencia', child: Text('Solo transferencia')),
+                        DropdownMenuItem(value: 'otro', child: Text('Solo otro')),
                       ],
                       onChanged: (v) => setState(() => _pago = v ?? 'todos'),
                       decoration: const InputDecoration(labelText: 'Medio de pago', border: OutlineInputBorder()),
@@ -353,7 +356,7 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
                       controller: _buscaCtrl,
                       onChanged: (_) => _aplicarBusqueda(),
                       decoration: const InputDecoration(
-                        labelText: 'Buscar (cliente / tel / vehículo / servicio)',
+                        labelText: 'Buscar (cliente / tel / patente / vehículo / servicio)',
                         border: OutlineInputBorder(),
                         prefixIcon: Icon(Icons.search),
                       ),
@@ -451,7 +454,7 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
       } else if (w < 980) {
         cols = 3;
       } else {
-        cols = 3; // compactos y legibles
+        cols = 3;
       }
 
       return GridView.count(
@@ -470,8 +473,13 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
     final x = d.data();
     final cli = (x['cliente_snapshot'] ?? {}) as Map<String, dynamic>;
     final nombre = (cli['nombre'] ?? '').toString();
+    final apellido = (cli['apellido'] ?? '').toString();
+    final nombreCompleto = [nombre, apellido].where((e) => e.trim().isNotEmpty).join(' ').trim().isEmpty
+        ? (cli['nombre_completo'] ?? '').toString()
+        : '$nombre $apellido';
     final tel = (cli['telefono'] ?? '').toString();
     final veh = (x['vehiculo'] ?? '').toString();
+    final patente = (x['patente'] ?? '').toString();
     final srv = (x['servicio'] ?? '').toString();
 
     final pago = (x['pago'] ?? {}) as Map<String, dynamic>;
@@ -491,7 +499,7 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        onTap: () => _showDetalle(x),
+        onTap: () => _showDetalle(d),
         child: Ink(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
@@ -502,7 +510,10 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
             children: [
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('$nombre • $veh', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                  Text(
+                    patente.trim().isEmpty ? '$nombreCompleto • $veh' : '$nombreCompleto • $patente • $veh',
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
                   const SizedBox(height: 4),
                   Row(children: [
                     Icon(Icons.access_time, size: 14, color: kPrimary),
@@ -519,10 +530,11 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
                     Icon(Icons.phone, size: 14, color: Colors.black45),
                     const SizedBox(width: 4),
                     Flexible(
-                      child: Text(tel, overflow: TextOverflow.ellipsis,
+                      child: Text(tel,
+                          overflow: TextOverflow.ellipsis,
                           style: const TextStyle(fontSize: 12, color: Colors.black54)),
                     ),
-                  ]),
+                  ]), 
                   const SizedBox(height: 4),
                   Row(children: [
                     const Text('Espera: ', style: TextStyle(fontSize: 12, color: Colors.black54)),
@@ -561,7 +573,9 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
         ? const Color(0xFF10B981)
         : t == 'transferencia'
             ? const Color(0xFF3B82F6)
-            : Colors.grey;
+            : t == 'otro'
+                ? const Color(0xFF8B5CF6)
+                : Colors.grey;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
@@ -600,28 +614,263 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
     }
   }
 
-  void _showDetalle(Map<String, dynamic> x) {
+  // ===== Detalle + Editar =====
+  void _showDetalle(QueryDocumentSnapshot<Map<String, dynamic>> d) {
+    final x = d.data();
     final cli = (x['cliente_snapshot'] ?? {}) as Map<String, dynamic>;
     final pago = (x['pago'] ?? {}) as Map<String, dynamic>;
+
+    final nombre = (cli['nombre'] ?? '').toString();
+    final apellido = (cli['apellido'] ?? '').toString();
+    final nombreCompleto = [nombre, apellido].where((e) => e.trim().isNotEmpty).join(' ').trim().isEmpty
+        ? (cli['nombre_completo'] ?? '').toString()
+        : '$nombre $apellido';
+
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: Text(cli['nombre']?.toString() ?? 'Detalle'),
+        title: Text(nombreCompleto.isEmpty ? 'Detalle' : nombreCompleto),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _dl('Teléfono', cli['telefono']?.toString() ?? '—'),
-            _dl('Vehículo', x['vehiculo']?.toString() ?? '—'),
-            _dl('Servicio', x['servicio']?.toString() ?? '—'),
+            _dl('Teléfono', (cli['telefono'] ?? '—').toString()),
+            _dl('Vehículo', (x['vehiculo'] ?? '—').toString()),
+            _dl('Patente', (x['patente'] ?? '—').toString()),
+            _dl('Servicio', (x['servicio'] ?? '—').toString()),
             _dl('Monto', _money.format((pago['monto'] as num?) ?? (x['precio_snapshot'] as num?) ?? 0)),
             _dl('Medio de pago', (pago['tipo'] ?? '—').toString()),
           ],
         ),
-        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cerrar'))],
+        actions: [
+  TextButton(
+    onPressed: () => Navigator.of(context, rootNavigator: true).pop(),
+    child: const Text('Cerrar'),
+  ),
+  FilledButton(
+    onPressed: () async {
+      // cerrar el diálogo con el rootNavigator
+      Navigator.of(context, rootNavigator: true).pop();
+      // abrir la hoja en el próximo micro-tick con el context del State
+      Future.microtask(() => _openEditSheet(d));
+    },
+    child: const Text('Editar'),
+  ),
+],
       ),
     );
   }
+
+  // ====== Sheet de edición (sin fechas) ======
+  final _vehCtrl = TextEditingController();
+  final _patCtrl = TextEditingController();
+  final _montoCtrl = TextEditingController();
+  String _tipoPago = 'efectivo';
+  String? _srvSelId;
+  String? _srvSelNombre;
+  double? _srvPrecio;
+
+  // validador de patente AR
+  final _reMercosur = RegExp(r'^[A-HJ-NP-Z]{2}\d{3}[A-HJ-NP-Z]{2}$');
+  final _reVieja = RegExp(r'^[A-HJ-NP-Z]{3}\d{3}$');
+  String _normPat(String s) => s.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
+
+  Future<void> _openEditSheet(QueryDocumentSnapshot<Map<String, dynamic>> d) async {
+  final x = d.data();
+  final pago = (x['pago'] ?? {}) as Map<String, dynamic>;
+
+  _vehCtrl.text   = (x['vehiculo'] ?? '').toString();
+  _patCtrl.text   = (x['patente']  ?? '').toString();
+  _montoCtrl.text = ((pago['monto'] as num?) ?? (x['precio_snapshot'] as num?) ?? 0).toStringAsFixed(0);
+  _tipoPago       = (pago['tipo'] ?? 'efectivo').toString();
+  _srvSelNombre   = (x['servicio'] ?? '').toString();
+  _srvSelId       = (x['servicio_id'] ?? '').toString();
+  _srvPrecio      = (x['precio_snapshot'] as num?)?.toDouble();
+
+  QuerySnapshot<Map<String, dynamic>> servicios;
+  try {
+    servicios = await _serviciosCol.orderBy('nombre').get();
+  } catch (e) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('No se pudieron cargar servicios: $e')),
+    );
+    return;
+  }
+  if (!mounted) return;
+
+  showModalBottomSheet(
+    context: context,
+    useRootNavigator: true,
+    isScrollControlled: true,
+    builder: (_) => Padding(
+      padding: EdgeInsets.only(
+        left: 16, right: 16, top: 16,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+      ),
+      child: StatefulBuilder(
+        builder: (context, setS) {
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text('Editar orden', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 12),
+
+              TextField(
+                controller: _vehCtrl,
+                decoration: const InputDecoration(labelText: 'Vehículo', border: OutlineInputBorder()),
+              ),
+              const SizedBox(height: 8),
+
+              TextField(
+                controller: _patCtrl,
+                textCapitalization: TextCapitalization.characters,
+                decoration: const InputDecoration(labelText: 'Patente', border: OutlineInputBorder()),
+                onChanged: (_) => setS(() {}),
+              ),
+              const SizedBox(height: 8),
+
+              DropdownButtonFormField<String>(
+                value: _tipoPago,
+                items: const [
+                  DropdownMenuItem(value: 'efectivo', child: Text('Efectivo')),
+                  DropdownMenuItem(value: 'transferencia', child: Text('Transferencia')),
+                  DropdownMenuItem(value: 'otro', child: Text('Otro')),
+                ],
+                onChanged: (v) => setS(() => _tipoPago = v ?? 'efectivo'),
+                decoration: const InputDecoration(labelText: 'Medio de pago', border: OutlineInputBorder()),
+              ),
+              const SizedBox(height: 8),
+
+              TextField(
+                controller: _montoCtrl,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(labelText: 'Monto', prefixText: r'$ ', border: OutlineInputBorder()),
+              ),
+              const SizedBox(height: 8),
+
+              DropdownButtonFormField<String>(
+                value: _srvSelId?.isEmpty == true ? null : _srvSelId,
+                items: servicios.docs
+                    .where((e) => (e.data()['activo'] as bool?) ?? true)
+                    .map((e) => DropdownMenuItem(
+                          value: e.id,
+                          child: Text((e.data()['nombre'] ?? '').toString()),
+                        ))
+                    .toList(),
+                onChanged: (id) {
+                  final e = servicios.docs.firstWhere((z) => z.id == id);
+                  final data = e.data();
+                  setS(() {
+                    _srvSelId     = e.id;
+                    _srvSelNombre = (data['nombre'] ?? '').toString();
+                    _srvPrecio    = (data['precio'] as num?)?.toDouble();
+                  });
+                },
+                decoration: const InputDecoration(labelText: 'Servicio', border: OutlineInputBorder()),
+              ),
+              if (_srvPrecio != null) ...[
+                const SizedBox(height: 6),
+                Text('Precio de servicio: ${_money.format(_srvPrecio)}',
+                    style: const TextStyle(fontSize: 12, color: Colors.black54)),
+              ],
+              const SizedBox(height: 12),
+
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Cancelar'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: () async {
+                        // Validaciones
+                        final m = double.tryParse(_montoCtrl.text.trim());
+                        if (m == null || m <= 0) {
+                          ScaffoldMessenger.of(context)
+                              .showSnackBar(const SnackBar(content: Text('Monto inválido')));
+                          return;
+                        }
+                        final p = _normPat(_patCtrl.text.trim());
+                        if (!(p.isEmpty || _reMercosur.hasMatch(p) || _reVieja.hasMatch(p))) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Patente inválida (AB123CD o ABC123)')),
+                          );
+                          return;
+                        }
+
+                        final cambios = <String, dynamic>{
+                          'vehiculo': _vehCtrl.text.trim(),
+                          if (_patCtrl.text.trim().isEmpty) ...{
+                            'patente': FieldValue.delete(),
+                            'patente_norm': FieldValue.delete(),
+                          } else ...{
+                            'patente': _patCtrl.text.trim().toUpperCase(),
+                            'patente_norm': p,
+                          },
+                          'pago': {'tipo': _tipoPago, 'monto': m},
+                          if (_srvSelNombre != null && _srvSelNombre!.isNotEmpty) ...{
+                            'servicio': _srvSelNombre,
+                            'servicio_id': _srvSelId,
+                            if (_srvPrecio != null) 'precio_snapshot': _srvPrecio,
+                          },
+                          // Campos de auditoría (válidos aquí)
+                          'edited_at': FieldValue.serverTimestamp(),
+                          'edited_by_uid': _uid,
+                          'edited_by_role': 'admin',
+                        };
+
+                        try {
+                          // 1) actualizar campos
+                          await d.reference.update(cambios);
+
+                          // 2) agregar log sin serverTimestamp dentro de arrayUnion
+                          await d.reference.update({
+                            'edit_log': FieldValue.arrayUnion([
+                              {
+                                'at': Timestamp.now(), // ✅ válido dentro de arrayUnion
+                                'by': _uid,
+                                'changes': {
+                                  'vehiculo': _vehCtrl.text.trim(),
+                                  'patente': _patCtrl.text.trim().toUpperCase(),
+                                  'pago.tipo': _tipoPago,
+                                  'pago.monto': m,
+                                  'servicio': _srvSelNombre,
+                                }
+                              }
+                            ])
+                          });
+
+                          if (!mounted) return;
+                          Navigator.pop(context);
+                          _cargar();
+                          ScaffoldMessenger.of(context)
+                              .showSnackBar(const SnackBar(content: Text('Orden actualizada')));
+                        } catch (e) {
+                          if (!mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('No se pudo actualizar: $e')),
+                          );
+                        }
+                      },
+                      child: const Text('Guardar'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          );
+        },
+      ),
+    ),
+  );
+}
+
 
   Widget _dl(String k, String v) {
     return Padding(
@@ -633,4 +882,6 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
     );
   }
 }
+
+
 

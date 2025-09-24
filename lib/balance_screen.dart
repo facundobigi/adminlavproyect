@@ -1,5 +1,7 @@
 // balance_screen.dart
 import 'dart:ui' show FontFeature;
+import 'dart:convert';
+import 'dart:html' as html; // Export CSV en Web
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -23,21 +25,20 @@ class _BalanceScreenState extends State<BalanceScreen> {
   static const Color kGreen = Color(0xFF1E9E6A);
   static const Color kRed = Color(0xFFC62828);
   static const Color kBg = Color(0xFFF7F8FA);
-  static const double _panelMaxW = 720; // un toque más ancho para desktop
+  static const double _panelMaxW = 720;
   static const double _radius = 16;
 
-  // Estilo numérico tabular
+  // Estilo numérico
   static const _numStyle = TextStyle(
     fontSize: 16,
     fontWeight: FontWeight.w700,
     fontFeatures: [FontFeature.tabularFigures()],
   );
 
-  // Formatters seguros
+  final _money = NumberFormat.currency(locale: 'es_AR', symbol: r'$');
   String fmt(num v) {
     try {
-      final s =
-          NumberFormat.currency(locale: 'es_AR', symbol: r'$').format(v.abs());
+      final s = _money.format(v.abs());
       return v < 0 ? '-$s' : s;
     } catch (_) {
       final s = '\$ ${v.abs().toStringAsFixed(2)}';
@@ -50,9 +51,7 @@ class _BalanceScreenState extends State<BalanceScreen> {
     try {
       return DateFormat('dd/MM/yyyy').format(d);
     } catch (_) {
-      return '${d.day.toString().padLeft(2, '0')}/'
-          '${d.month.toString().padLeft(2, '0')}/'
-          '${d.year}';
+      return '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
     }
   }
 
@@ -62,6 +61,7 @@ class _BalanceScreenState extends State<BalanceScreen> {
   int totalLavados = 0;
   double totalEfectivo = 0;
   double totalTransferencia = 0;
+  double totalOtro = 0;
   double totalIngresos = 0;
   double totalGastos = 0;
   double totalLavadores = 0;
@@ -86,10 +86,8 @@ class _BalanceScreenState extends State<BalanceScreen> {
 
   Future<void> cargarBalance() async {
     if (fechaDesde == null || fechaHasta == null) return;
-    final inicio =
-        DateTime(fechaDesde!.year, fechaDesde!.month, fechaDesde!.day);
-    final fin =
-        DateTime(fechaHasta!.year, fechaHasta!.month, fechaHasta!.day + 1);
+    final inicio = DateTime(fechaDesde!.year, fechaDesde!.month, fechaDesde!.day);
+    final fin = DateTime(fechaHasta!.year, fechaHasta!.month, fechaHasta!.day + 1);
 
     final qs = await _userRef
         .collection('ordenes')
@@ -97,16 +95,19 @@ class _BalanceScreenState extends State<BalanceScreen> {
         .where('delivered_at', isLessThan: fin)
         .get();
 
-    double efectivo = 0, transferencia = 0;
+    double efectivo = 0, transferencia = 0, otro = 0;
     for (final d in qs.docs) {
-      final pago = d['pago'];
+      final data = d.data();
+      final pago = data['pago'];
       if (pago is Map) {
         final monto = (pago['monto'] as num?)?.toDouble() ?? 0.0;
         final tipo = (pago['tipo'] ?? '') as String? ?? '';
         if (tipo == 'efectivo') efectivo += monto;
-        if (tipo == 'transferencia') transferencia += monto;
+        else if (tipo == 'transferencia') transferencia += monto;
+        else if (tipo == 'otro') otro += monto;
+        else efectivo += monto; // fallback histórico
       } else {
-        efectivo += (d['precio'] as num?)?.toDouble() ?? 0.0;
+        efectivo += (data['precio'] as num?)?.toDouble() ?? 0.0;
       }
     }
 
@@ -115,12 +116,9 @@ class _BalanceScreenState extends State<BalanceScreen> {
         .where('fecha', isGreaterThanOrEqualTo: inicio)
         .where('fecha', isLessThan: fin)
         .get();
-    final gast = gastos.docs.fold<double>(
-      0,
-      (s, d) => s + ((d['monto'] as num?)?.toDouble() ?? 0.0),
-    );
+    final gast = gastos.docs.fold<double>(0, (s, d) => s + (((d.data() as Map)['monto'] as num?)?.toDouble() ?? 0.0));
 
-    final ingresos = efectivo + transferencia;
+    final ingresos = efectivo + transferencia + otro;
     final pagoLav = ingresos * _porcLav;
     final cierre = ingresos - gast - pagoLav;
 
@@ -129,6 +127,7 @@ class _BalanceScreenState extends State<BalanceScreen> {
       totalLavados = qs.size;
       totalEfectivo = efectivo;
       totalTransferencia = transferencia;
+      totalOtro = otro;
       totalIngresos = ingresos;
       totalGastos = gast;
       totalLavadores = pagoLav;
@@ -162,12 +161,41 @@ class _BalanceScreenState extends State<BalanceScreen> {
     }
   }
 
+  // ===== Exportación CSV solo con el card =====
+  Future<void> _exportarCSV() async {
+    final inicio = fechaDesde;
+    final fin = fechaHasta;
+    if (inicio == null || fin == null) return;
+
+    final csv = StringBuffer();
+    csv.writeln('Rango,${DateFormat('dd/MM/yyyy').format(inicio)},${DateFormat('dd/MM/yyyy').format(fin)}');
+    csv.writeln('Concepto,Valor');
+    csv.writeln('Lavados,$totalLavados');
+    csv.writeln('Efectivo,${totalEfectivo.toStringAsFixed(2)}');
+    csv.writeln('Transferencia,${totalTransferencia.toStringAsFixed(2)}');
+    csv.writeln('Otro,${totalOtro.toStringAsFixed(2)}');
+    csv.writeln('Ingresos totales,${totalIngresos.toStringAsFixed(2)}');
+    csv.writeln('Gastos,${totalGastos.toStringAsFixed(2)}');
+    csv.writeln('Pago a lavadores ${(_porcLav * 100).toStringAsFixed(0)}%,${totalLavadores.toStringAsFixed(2)}');
+    csv.writeln('Cierre neto,${cierreNeto.toStringAsFixed(2)}');
+
+    final bytes = utf8.encode(csv.toString());
+    final blob = html.Blob([bytes], 'text/csv;charset=utf-8');
+    final url = html.Url.createObjectUrlFromBlob(blob);
+    final a = html.AnchorElement(href: url)
+      ..download =
+          'balance_${DateFormat('yyyyMMdd').format(inicio)}_${DateFormat('yyyyMMdd').format(fin)}.csv';
+    html.document.body!.append(a);
+    a.click();
+    a.remove();
+    html.Url.revokeObjectUrl(url);
+  }
+
   @override
   Widget build(BuildContext context) {
     final desdeStr = fmtDate(fechaDesde);
     final hastaStr = fmtDate(fechaHasta);
 
-    // Limita cómo escala el texto en móviles para evitar desbordes
     final scaler =
         MediaQuery.textScalerOf(context).clamp(minScaleFactor: 0.9, maxScaleFactor: 1.15);
 
@@ -186,6 +214,14 @@ class _BalanceScreenState extends State<BalanceScreen> {
           ),
           title: const Text('Balance'),
           centerTitle: true,
+          actions: [
+            IconButton(
+              tooltip: 'Exportar CSV',
+              onPressed: _exportarCSV,
+              icon: const Icon(Icons.file_download),
+              color: kPrimary,
+            ),
+          ],
         ),
         body: SafeArea(
           child: Center(
@@ -218,22 +254,19 @@ class _BalanceScreenState extends State<BalanceScreen> {
                     ),
                     const SizedBox(height: 12),
 
-                    // Filtros de fecha (responsive)
+                    // Filtros y export
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(_radius),
                         boxShadow: const [
-                          BoxShadow(
-                              color: Color(0x11000000),
-                              blurRadius: 10,
-                              offset: Offset(0, 3))
+                          BoxShadow(color: Color(0x11000000), blurRadius: 10, offset: Offset(0, 3))
                         ],
                       ),
                       child: LayoutBuilder(
                         builder: (_, c) {
-                          final narrow = c.maxWidth < 520;
+                          final narrow = c.maxWidth < 560;
                           final children = [
                             Expanded(
                               child: OutlinedButton.icon(
@@ -243,10 +276,8 @@ class _BalanceScreenState extends State<BalanceScreen> {
                                 style: OutlinedButton.styleFrom(
                                   side: const BorderSide(color: kPrimary),
                                   foregroundColor: kPrimary,
-                                  shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(10)),
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 10, vertical: 10),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
                                 ),
                               ),
                             ),
@@ -259,25 +290,37 @@ class _BalanceScreenState extends State<BalanceScreen> {
                                 style: OutlinedButton.styleFrom(
                                   side: const BorderSide(color: kPrimary),
                                   foregroundColor: kPrimary,
-                                  shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(10)),
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 10, vertical: 10),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            SizedBox(
+                              width: 160,
+                              child: ElevatedButton.icon(
+                                onPressed: _exportarCSV,
+                                icon: const Icon(Icons.file_download),
+                                label: const Text('Exportar CSV'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: kPrimary,
+                                  foregroundColor: Colors.white,
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                                 ),
                               ),
                             ),
                           ];
 
-                          if (!narrow) {
-                            return Row(children: children);
-                          }
+                          if (!narrow) return Row(children: children);
                           return Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               children[0],
                               const SizedBox(height: 8),
-                              // en columna, el SizedBox(width) no aporta; lo omitimos
                               children[2],
+                              const SizedBox(height: 8),
+                              children[4],
                             ],
                           );
                         },
@@ -287,54 +330,60 @@ class _BalanceScreenState extends State<BalanceScreen> {
 
                     // Card resumen
                     Container(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(_radius),
                         boxShadow: const [
-                          BoxShadow(
-                              color: Color(0x11000000),
-                              blurRadius: 10,
-                              offset: Offset(0, 3))
+                          BoxShadow(color: Color(0x11000000), blurRadius: 10, offset: Offset(0, 3))
                         ],
                       ),
                       child: Column(
                         children: [
-                          _row('Lavados',
-                              Text('$totalLavados', style: _numStyle)),
-                          _row('Efectivo',
-                              Text(fmt(totalEfectivo), style: _numStyle)),
-                          _row('Transferencia',
-                              Text(fmt(totalTransferencia), style: _numStyle)),
+                          _row('Lavados', Text('$totalLavados', style: _numStyle)),
+                          _row('Efectivo', Text(fmt(totalEfectivo), style: _numStyle)),
+                          _row('Transferencia', Text(fmt(totalTransferencia), style: _numStyle)),
+                          _row('Otros', Text(fmt(totalOtro), style: _numStyle)),
                           _row(
-                              'Ingresos totales',
-                              Text(fmt(totalIngresos),
-                                  style: _numStyle.copyWith(
-                                      fontWeight: FontWeight.w800))),
+                            'Ingresos totales',
+                            Text(fmt(totalIngresos), style: _numStyle.copyWith(fontWeight: FontWeight.w800)),
+                          ),
                           const SizedBox(height: 10),
                           const Divider(height: 24, color: Color(0xFFEAECEF)),
-                          _rowWithAction(
-                            'Gastos',
-                            Text(fmt(totalGastos), style: _numStyle),
-                            label: 'resumen',
-                            icon: Icons.receipt_long,
-                            onPressed: () {
-                              final inicio = DateTime(fechaDesde!.year,
-                                  fechaDesde!.month, fechaDesde!.day);
-                              final fin = DateTime(fechaHasta!.year,
-                                  fechaHasta!.month, fechaHasta!.day + 1);
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => ResumenGastosScreen(
-                                    initialRange:
-                                        DateTimeRange(start: inicio, end: fin),
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
+
+                          // "resumen" a la derecha del total de gastos
+                          Padding(
+  padding: const EdgeInsets.symmetric(vertical: 6),
+  child: Row(
+    children: [
+      const Text('Gastos', style: TextStyle(fontSize: 16)),
+      const SizedBox(width: 8),
+      TextButton.icon(
+        onPressed: () {
+          final inicio = DateTime(fechaDesde!.year, fechaDesde!.month, fechaDesde!.day);
+          final fin = DateTime(fechaHasta!.year, fechaHasta!.month, fechaHasta!.day + 1);
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ResumenGastosScreen(
+                initialRange: DateTimeRange(start: inicio, end: fin),
+              ),
+            ),
+          );
+        },
+        icon: const Icon(Icons.receipt_long, size: 18),
+        label: const Text('resumen', style: TextStyle(fontSize: 12)),
+        style: TextButton.styleFrom(foregroundColor: kPrimary),
+      ),
+      const Spacer(),
+      DefaultTextStyle.merge(
+        style: _numStyle,
+        child: Text(fmt(totalGastos)),
+      ),
+    ],
+  ),
+),
+
                           _row(
                             'Pago a lavadores (${(_porcLav * 100).toStringAsFixed(0)}%)',
                             Text(fmt(totalLavadores), style: _numStyle),
@@ -354,7 +403,6 @@ class _BalanceScreenState extends State<BalanceScreen> {
     );
   }
 
-  // ===== Widgets base =====
   Widget _row(String l, Widget r) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
@@ -362,28 +410,6 @@ class _BalanceScreenState extends State<BalanceScreen> {
         children: [
           Expanded(child: Text(l, style: const TextStyle(fontSize: 16))),
           DefaultTextStyle.merge(style: _numStyle, child: r),
-        ],
-      ),
-    );
-  }
-
-  Widget _rowWithAction(String l, Widget r,
-      {required String label,
-      required IconData icon,
-      required VoidCallback onPressed}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        children: [
-          Expanded(child: Text(l, style: const TextStyle(fontSize: 16))),
-          DefaultTextStyle.merge(style: _numStyle, child: r),
-          const SizedBox(width: 8),
-          TextButton.icon(
-            onPressed: onPressed,
-            icon: Icon(icon, size: 18),
-            label: Text(label, style: const TextStyle(fontSize: 12)),
-            style: TextButton.styleFrom(foregroundColor: kPrimary),
-          ),
         ],
       ),
     );
@@ -413,6 +439,7 @@ class _BalanceScreenState extends State<BalanceScreen> {
     );
   }
 }
+
 
 
 
