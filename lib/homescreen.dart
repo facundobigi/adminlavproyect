@@ -41,6 +41,8 @@ class _HomeScreenState extends State<HomeScreen> {
   double totalGastos = 0;
   double cierreEfectivo = 0;
   double pagoLavadores = 0;
+  double cierreEfectivoCaja = 0; // nuevo
+
 
   bool cargando = true;
 
@@ -158,6 +160,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ingresosTotales = ingresos;
       totalGastos = gast;
       pagoLavadores = ingresosTotales * porcLav;
+      cierreEfectivoCaja = totalEfectivo - totalGastos - pagoLavadores;
       cierreEfectivo = ingresosTotales - totalGastos - pagoLavadores;
 
       enColaCount = enCola.size;
@@ -202,6 +205,7 @@ class _HomeScreenState extends State<HomeScreen> {
         setState(() {
           porcLav = p;
           pagoLavadores = ingresosTotales * porcLav;
+          cierreEfectivoCaja = totalEfectivo - totalGastos - pagoLavadores;
           cierreEfectivo = ingresosTotales - totalGastos - pagoLavadores;
         });
       } else {
@@ -551,6 +555,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   label: 'editar',
                   onPressed: _editarPorcLav,
                 ),
+                _row('Cierre efectivo', _animNum(fmt(cierreEfectivoCaja), bold: true)),
+SizedBox(height: compact ? 6 : 8),
 
               SizedBox(height: compact ? 8 : 12),
               _cierreCinta(cierreEfectivo),
