@@ -309,7 +309,13 @@ class _HomeScreenState extends State<HomeScreen> {
               _tileAccent(
                 Icons.receipt_long,
                 'Registrar Gasto',
-                () => _go(RegistroGastoScreen(tenantId: widget.tenantId, role: widget.role)),
+                () => _go(
+                      RegistroGastoScreen(
+                        tenantId: widget.tenantId,
+                        role: widget.role,
+                        selectedDate: DateTime(today.year, today.month, today.day),
+                      ),
+                    ),
               ),
               // Solo admin: botones extra
               if (!isOperator) ...[
@@ -365,7 +371,13 @@ class _HomeScreenState extends State<HomeScreen> {
         _tileAccent(
           Icons.receipt_long,
           'Registrar Gasto',
-          () => _go(RegistroGastoScreen(tenantId: widget.tenantId, role: widget.role)),
+          () => _go(
+                RegistroGastoScreen(
+                  tenantId: widget.tenantId,
+                  role: widget.role,
+                  selectedDate: DateTime(today.year, today.month, today.day),
+                ),
+              ),
         ),
         if (!isOperator) ...[
           SizedBox(height: compact ? 8 : 12),
@@ -539,8 +551,16 @@ class _HomeScreenState extends State<HomeScreen> {
                   icon: Icons.receipt_long,
                   label: 'resumen',
                   onPressed: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const ResumenGastosScreen()))
-                        .then((_) => cargarResumenDelDia());
+                    final inicioDia = DateTime(today.year, today.month, today.day);
+                    final finDia = inicioDia.add(const Duration(days: 1));
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ResumenGastosScreen(
+                          initialRange: DateTimeRange(start: inicioDia, end: finDia),
+                        ),
+                      ),
+                    ).then((_) => cargarResumenDelDia());
                   },
                 ),
 

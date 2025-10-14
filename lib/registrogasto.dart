@@ -6,7 +6,8 @@ import 'package:flutter/services.dart';
 class RegistroGastoScreen extends StatefulWidget {
   final String tenantId; // UID del dueño
   final String role;     // 'admin' | 'operator'
-  const RegistroGastoScreen({super.key, required this.tenantId, required this.role});
+  final DateTime selectedDate; // día al que se asignará el gasto
+  const RegistroGastoScreen({super.key, required this.tenantId, required this.role, required this.selectedDate});
 
   @override
   State<RegistroGastoScreen> createState() => _RegistroGastoScreenState();
@@ -35,10 +36,23 @@ class _RegistroGastoScreenState extends State<RegistroGastoScreen> {
       final descripcion = _descripcionController.text.trim();
       final monto = double.parse(_montoController.text.trim());
 
+      final baseDay = widget.selectedDate;
+      final now = DateTime.now();
+      final fechaAsignada = DateTime(
+        baseDay.year,
+        baseDay.month,
+        baseDay.day,
+        now.hour,
+        now.minute,
+        now.second,
+        now.millisecond,
+        now.microsecond,
+      );
+
       await _gastosCol.add({
         'descripcion': descripcion,
         'monto': monto,
-        'fecha': FieldValue.serverTimestamp(),
+        'fecha': Timestamp.fromDate(fechaAsignada),
         'created_at': FieldValue.serverTimestamp(),
         'created_by_role': widget.role,
       });

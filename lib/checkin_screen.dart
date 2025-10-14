@@ -67,12 +67,15 @@ class _CheckInScreenState extends State<CheckInScreen> {
   String _normPatente(String s) => s.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
 
   // Patrones AR
-  final _reMercosur = RegExp(r'^[A-HJ-NP-Z]{2}\d{3}[A-HJ-NP-Z]{2}$'); // AA999AA
-  final _reVieja = RegExp(r'^[A-HJ-NP-Z]{3}\d{3}$');                  // AAA999
+  final _reMercosur = RegExp(r'^[A-Z]{2}\d{3}[A-Z]{2}$'); // AA999AA Mercosur
+  final _reViejaAuto = RegExp(r'^[A-Z]{3}\d{3}$');        // AAA999 autos viejos
+  final _reViejaMoto = RegExp(r'^\d{3}[A-Z]{3}$');        // 999AAA motos viejas
   bool _validPatenteAR(String p) {
     final n = _normPatente(p);
     if (n.length < 6 || n.length > 7) return false;
-    return _reMercosur.hasMatch(n) || _reVieja.hasMatch(n);
+    return _reMercosur.hasMatch(n) ||
+        _reViejaAuto.hasMatch(n) ||
+        _reViejaMoto.hasMatch(n);
   }
 
   // Filtros
@@ -485,7 +488,7 @@ class _CheckInScreenState extends State<CheckInScreen> {
                             controller: _patente,
                             decoration: const InputDecoration(
                               labelText: 'Patente',
-                              hintText: 'Ej: AB123CD o ABC123',
+                              hintText: 'Ej: AB123CD, ABC123 o 123ABC',
                               counterText: '',
                               border: OutlineInputBorder(),
                               helperText: ' ',
@@ -501,8 +504,8 @@ class _CheckInScreenState extends State<CheckInScreen> {
                             },
                             validator: (v) {
                               final s = (v ?? '').trim();
-                              if (s.isEmpty) return 'Ingresá la patente';
-                              if (!_validPatenteAR(s)) return 'Formato inválido (AB123CD o ABC123)';
+                              if (s.isEmpty) return 'Ingresa la patente';
+                              if (!_validPatenteAR(s)) return 'Formato invalido (AB123CD, ABC123 o 123ABC)';
                               return null;
                             },
                           ),
@@ -629,6 +632,7 @@ class _CheckInScreenState extends State<CheckInScreen> {
     );
   }
 }
+
 
 
 

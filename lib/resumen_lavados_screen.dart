@@ -671,8 +671,9 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
   double? _srvPrecio;
 
   // validador de patente AR
-  final _reMercosur = RegExp(r'^[A-HJ-NP-Z]{2}\d{3}[A-HJ-NP-Z]{2}$');
-  final _reVieja = RegExp(r'^[A-HJ-NP-Z]{3}\d{3}$');
+  final _reMercosur = RegExp(r'^[A-Z]{2}\d{3}[A-Z]{2}$');
+  final _reViejaAuto = RegExp(r'^[A-Z]{3}\d{3}$');
+  final _reViejaMoto = RegExp(r'^\d{3}[A-Z]{3}$');
   String _normPat(String s) => s.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
 
   Future<void> _openEditSheet(QueryDocumentSnapshot<Map<String, dynamic>> d) async {
@@ -797,9 +798,9 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
                           return;
                         }
                         final p = _normPat(_patCtrl.text.trim());
-                        if (!(p.isEmpty || _reMercosur.hasMatch(p) || _reVieja.hasMatch(p))) {
+                        if (!(p.isEmpty || _reMercosur.hasMatch(p) || _reViejaAuto.hasMatch(p) || _reViejaMoto.hasMatch(p))) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Patente inválida (AB123CD o ABC123)')),
+                            const SnackBar(content: Text('Patente invalida (AB123CD, ABC123 o 123ABC)')),
                           );
                           return;
                         }
