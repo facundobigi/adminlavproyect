@@ -66,6 +66,7 @@ class _BalanceScreenState extends State<BalanceScreen> {
   double totalGastos = 0;
   double totalLavadores = 0;
   double cierreNeto = 0;
+  double cierreEfectivo = 0;
 
   double _porcLav = 0.40;
 
@@ -121,6 +122,7 @@ class _BalanceScreenState extends State<BalanceScreen> {
     final ingresos = efectivo + transferencia + otro;
     final pagoLav = ingresos * _porcLav;
     final cierre = ingresos - gast - pagoLav;
+    final cierreCash = efectivo - gast - pagoLav;
 
     if (!mounted) return;
     setState(() {
@@ -132,6 +134,7 @@ class _BalanceScreenState extends State<BalanceScreen> {
       totalGastos = gast;
       totalLavadores = pagoLav;
       cierreNeto = cierre;
+      cierreEfectivo = cierreCash;
     });
   }
 
@@ -177,6 +180,7 @@ class _BalanceScreenState extends State<BalanceScreen> {
     csv.writeln('Ingresos totales,${totalIngresos.toStringAsFixed(2)}');
     csv.writeln('Gastos,${totalGastos.toStringAsFixed(2)}');
     csv.writeln('Pago a lavadores ${(_porcLav * 100).toStringAsFixed(0)}%,${totalLavadores.toStringAsFixed(2)}');
+    csv.writeln('Cierre efectivo,${cierreEfectivo.toStringAsFixed(2)}');
     csv.writeln('Cierre neto,${cierreNeto.toStringAsFixed(2)}');
 
     final bytes = utf8.encode(csv.toString());
@@ -387,6 +391,13 @@ class _BalanceScreenState extends State<BalanceScreen> {
                           _row(
                             'Pago a lavadores (${(_porcLav * 100).toStringAsFixed(0)}%)',
                             Text(fmt(totalLavadores), style: _numStyle),
+                          ),
+                          _row(
+                            'Cierre efectivo',
+                            Text(
+                              fmt(cierreEfectivo),
+                              style: _numStyle.copyWith(fontWeight: FontWeight.w800),
+                            ),
                           ),
                           const SizedBox(height: 12),
                           _cierreCinta(cierreNeto),

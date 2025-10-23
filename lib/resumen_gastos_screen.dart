@@ -1,4 +1,4 @@
-// resumen_gastos_screen.dart
+﻿// resumen_gastos_screen.dart
 import 'dart:ui' show FontFeature;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -18,10 +18,10 @@ class _ResumenGastosScreenState extends State<ResumenGastosScreen> {
   // Paleta y tokens
   static const Color kPrimary = Color.fromARGB(255, 22, 53, 117);
   static const Color kBg = Color(0xFFF7F8FA);
-  static const double _panelMaxW = 720; // un poco más ancho en desktop
+  static const double _panelMaxW = 720; // un poco mÃ¡s ancho en desktop
   static const double _radius = 16;
 
-  // Números tabulares
+  // NÃºmeros tabulares
   static const _numStyle = TextStyle(
     fontSize: 16,
     fontWeight: FontWeight.w700,
@@ -30,6 +30,8 @@ class _ResumenGastosScreenState extends State<ResumenGastosScreen> {
 
   late DateTimeRange _rango;
   final String _uid = FirebaseAuth.instance.currentUser!.uid;
+  final TextEditingController _searchCtrl = TextEditingController();
+  String _search = '';
 
   @override
   void initState() {
@@ -38,6 +40,12 @@ class _ResumenGastosScreenState extends State<ResumenGastosScreen> {
     final start = DateTime(now.year, now.month, now.day);
     _rango = widget.initialRange ??
         DateTimeRange(start: start, end: start.add(const Duration(days: 1)));
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
   }
 
   // Formatos seguros para web
@@ -95,7 +103,7 @@ class _ResumenGastosScreenState extends State<ResumenGastosScreen> {
         .orderBy('fecha', descending: true);
 
     final rangoLabel =
-        '${DateFormat('dd/MM/yy').format(_rango.start)}  →  ${DateFormat('dd/MM/yy').format(_rango.end.subtract(const Duration(days: 1)))}';
+        '${DateFormat('dd/MM/yy').format(_rango.start)}  al  ${DateFormat('dd/MM/yy').format(_rango.end.subtract(const Duration(days: 1)))}';
 
     return MediaQuery(
       data: MediaQuery.of(context).copyWith(textScaler: scaler),
@@ -178,7 +186,7 @@ class _ResumenGastosScreenState extends State<ResumenGastosScreen> {
                                     const SizedBox(width: 12),
                                     const _HintText(
                                       text:
-                                          'Elegí un rango para ver el detalle y el total.',
+                                          'ElegÃ­ un rango para ver el detalle y el total.',
                                     ),
                                   ],
                                 )
@@ -189,12 +197,38 @@ class _ResumenGastosScreenState extends State<ResumenGastosScreen> {
                                     const SizedBox(height: 8),
                                     const _HintText(
                                       text:
-                                          'Elegí un rango para ver el detalle y el total.',
+                                          'ElegÃ­ un rango para ver el detalle y el total.',
                                       alignCenter: true,
                                     ),
                                   ],
                                 );
                         },
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // BÃºsqueda por nombre
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(_radius),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Color(0x11000000),
+                            blurRadius: 10,
+                            offset: Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: TextField(
+                        controller: _searchCtrl,
+                        onChanged: (v) => setState(() => _search = v.trim().toLowerCase()),
+                        decoration: const InputDecoration(
+                          hintText: 'Buscar gasto por nombre',
+                          prefixIcon: Icon(Icons.search),
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -216,7 +250,14 @@ class _ResumenGastosScreenState extends State<ResumenGastosScreen> {
                             return const Center(child: CircularProgressIndicator());
                           }
 
-                          final docs = s.data!.docs;
+                          final allDocs = s.data!.docs;
+                          final docs = _search.isEmpty
+                              ? allDocs
+                              : allDocs.where((d) {
+                                  final x = d.data();
+                                  final desc = (x['descripcion'] ?? '').toString().toLowerCase();
+                                  return desc.contains(_search);
+                                }).toList();
                           final total = docs.fold<double>(
                             0,
                             (a, d) => a + ((d.data()['monto'] as num?)?.toDouble() ?? 0),
@@ -271,7 +312,7 @@ class _ResumenGastosScreenState extends State<ResumenGastosScreen> {
                                         contentPadding: const EdgeInsets.symmetric(
                                             horizontal: 8, vertical: 2),
                                         title: Text(
-                                          desc.isEmpty ? '(sin descripción)' : desc,
+                                          desc.isEmpty ? '(sin descripciÃ³n)' : desc,
                                           style: const TextStyle(
                                               fontWeight: FontWeight.w500),
                                           maxLines: 2,
