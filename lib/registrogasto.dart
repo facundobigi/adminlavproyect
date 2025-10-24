@@ -5,9 +5,13 @@ import 'package:flutter/services.dart';
 
 class RegistroGastoScreen extends StatefulWidget {
   final String tenantId; // UID del dueño
-  final String role;     // 'admin' | 'operator'
+  final String role; // 'admin' | 'operator'
   final DateTime selectedDate; // día al que se asignará el gasto
-  const RegistroGastoScreen({super.key, required this.tenantId, required this.role, required this.selectedDate});
+  const RegistroGastoScreen(
+      {super.key,
+      required this.tenantId,
+      required this.role,
+      required this.selectedDate});
 
   @override
   State<RegistroGastoScreen> createState() => _RegistroGastoScreenState();
@@ -18,6 +22,8 @@ class _RegistroGastoScreenState extends State<RegistroGastoScreen> {
   final _descripcionController = TextEditingController();
   final _montoController = TextEditingController();
   bool _isLoading = false;
+  String _metodoPago = 'efectivo';
+  String _tipoGasto = 'diario';
 
   // Paleta y tokens
   static const Color kPrimary = Color.fromARGB(255, 20, 52, 117);
@@ -26,7 +32,10 @@ class _RegistroGastoScreenState extends State<RegistroGastoScreen> {
   static const double _radius = 16;
 
   CollectionReference<Map<String, dynamic>> get _gastosCol =>
-      FirebaseFirestore.instance.collection('users').doc(widget.tenantId).collection('gastos');
+      FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.tenantId)
+          .collection('gastos');
 
   Future<void> guardarGasto() async {
     if (!_formKey.currentState!.validate()) return;
@@ -55,6 +64,9 @@ class _RegistroGastoScreenState extends State<RegistroGastoScreen> {
         'fecha': Timestamp.fromDate(fechaAsignada),
         'created_at': FieldValue.serverTimestamp(),
         'created_by_role': widget.role,
+        'metodo_pago': _metodoPago,
+        'tipo_gasto': _tipoGasto,
+        'afecta_resumen_diario': _tipoGasto == 'diario',
       });
 
       if (mounted) Navigator.pop(context);
@@ -173,9 +185,12 @@ class _RegistroGastoScreenState extends State<RegistroGastoScreen> {
                                 prefixText: '\$ ',
                                 border: OutlineInputBorder(),
                               ),
-                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                      decimal: true),
                               inputFormatters: [
-                                FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+                                FilteringTextInputFormatter.allow(
+                                    RegExp(r'^\d*\.?\d{0,2}')),
                               ],
                               validator: (value) {
                                 final monto = double.tryParse(value ?? '');
@@ -183,6 +198,45 @@ class _RegistroGastoScreenState extends State<RegistroGastoScreen> {
                                   return 'Ingresá un monto válido';
                                 }
                                 return null;
+                              },
+                            );
+                            final metodoPagoField =
+                                DropdownButtonFormField<String>(
+                              value: _metodoPago,
+                              decoration: const InputDecoration(
+                                labelText: 'Forma de pago',
+                                border: OutlineInputBorder(),
+                              ),
+                              items: const [
+                                DropdownMenuItem(
+                                    value: 'efectivo', child: Text('Efectivo')),
+                                DropdownMenuItem(
+                                    value: 'transferencia',
+                                    child: Text('Transferencia')),
+                              ],
+                              onChanged: (value) {
+                                if (value == null) return;
+                                setState(() => _metodoPago = value);
+                              },
+                            );
+                            final tipoGastoField =
+                                DropdownButtonFormField<String>(
+                              value: _tipoGasto,
+                              decoration: const InputDecoration(
+                                labelText: 'Tipo de gasto',
+                                helperText:
+                                    'General no impacta el resumen diario',
+                                border: OutlineInputBorder(),
+                              ),
+                              items: const [
+                                DropdownMenuItem(
+                                    value: 'diario', child: Text('Diario')),
+                                DropdownMenuItem(
+                                    value: 'general', child: Text('General')),
+                              ],
+                              onChanged: (value) {
+                                if (value == null) return;
+                                setState(() => _tipoGasto = value);
                               },
                             );
 
@@ -197,7 +251,6 @@ class _RegistroGastoScreenState extends State<RegistroGastoScreen> {
                                   ),
                                 ),
                                 const SizedBox(height: 16),
-
                                 if (wide)
                                   Row(
                                     children: [
@@ -211,9 +264,21 @@ class _RegistroGastoScreenState extends State<RegistroGastoScreen> {
                                   const SizedBox(height: 12),
                                   montoField,
                                 ],
-
+                                const SizedBox(height: 12),
+                                if (wide)
+                                  Row(
+                                    children: [
+                                      Expanded(child: metodoPagoField),
+                                      const SizedBox(width: 12),
+                                      Expanded(child: tipoGastoField),
+                                    ],
+                                  )
+                                else ...[
+                                  metodoPagoField,
+                                  const SizedBox(height: 12),
+                                  tipoGastoField,
+                                ],
                                 const SizedBox(height: 24),
-
                                 Align(
                                   alignment: Alignment.center,
                                   child: SizedBox(
@@ -224,7 +289,8 @@ class _RegistroGastoScreenState extends State<RegistroGastoScreen> {
                                         foregroundColor: Colors.white,
                                         minimumSize: const Size.fromHeight(48),
                                         shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(10),
+                                          borderRadius:
+                                              BorderRadius.circular(10),
                                         ),
                                         textStyle: const TextStyle(
                                           fontSize: 16,
@@ -232,7 +298,8 @@ class _RegistroGastoScreenState extends State<RegistroGastoScreen> {
                                         ),
                                         elevation: 0,
                                       ),
-                                      onPressed: _isLoading ? null : guardarGasto,
+                                      onPressed:
+                                          _isLoading ? null : guardarGasto,
                                       child: _isLoading
                                           ? const SizedBox(
                                               height: 24,
@@ -262,8 +329,3 @@ class _RegistroGastoScreenState extends State<RegistroGastoScreen> {
     );
   }
 }
-
-
-
-
-

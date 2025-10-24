@@ -15,7 +15,7 @@ import 'resumen_gastos_screen.dart';
 import 'resumen_lavados_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  final String role;     // 'admin' | 'operator'
+  final String role; // 'admin' | 'operator'
   final String tenantId; // UID del dueño
   const HomeScreen({super.key, required this.role, required this.tenantId});
 
@@ -42,7 +42,6 @@ class _HomeScreenState extends State<HomeScreen> {
   double cierreEfectivo = 0;
   double pagoLavadores = 0;
   double cierreEfectivoCaja = 0; // nuevo
-
 
   bool cargando = true;
 
@@ -132,10 +131,17 @@ class _HomeScreenState extends State<HomeScreen> {
         .where('fecha', isGreaterThanOrEqualTo: inicioDia)
         .where('fecha', isLessThan: finDia)
         .get();
-    final gast = gastos.docs.fold<double>(
-      0,
-      (s, d) => s + ((d.data()['monto'] as num?)?.toDouble() ?? 0.0),
-    );
+    final gast = gastos.docs.fold<double>(0, (s, d) {
+      final data = d.data();
+      final afecta = data['afecta_resumen_diario'];
+      if (afecta is bool) {
+        if (!afecta) return s;
+      } else {
+        final tipo = data['tipo_gasto'] as String?;
+        if (tipo == 'general') return s;
+      }
+      return s + ((data['monto'] as num?)?.toDouble() ?? 0.0);
+    });
 
     final enCola = await _userRef
         .collection('ordenes')
@@ -181,8 +187,7 @@ class _HomeScreenState extends State<HomeScreen> {
         content: TextField(
           controller: ctrl,
           keyboardType: TextInputType.number,
-          decoration:
-              const InputDecoration(suffixText: '%', hintText: '0–100'),
+          decoration: const InputDecoration(suffixText: '%', hintText: '0–100'),
         ),
         actions: [
           TextButton(
@@ -210,8 +215,8 @@ class _HomeScreenState extends State<HomeScreen> {
         });
       } else {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Valor 0–100')));
+          ScaffoldMessenger.of(context)
+              .showSnackBar(const SnackBar(content: Text('Valor 0–100')));
         }
       }
     }
@@ -234,12 +239,13 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     // Si es operador, mostramos SIEMPRE la fecha de hoy (sin tocar state)
     final DateTime displayDate = isOperator
-        ? DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day)
+        ? DateTime(
+            DateTime.now().year, DateTime.now().month, DateTime.now().day)
         : today;
 
     final fechaStr = DateFormat('dd/MM/yyyy').format(displayDate);
-    final scaler =
-        MediaQuery.textScalerOf(context).clamp(minScaleFactor: 0.9, maxScaleFactor: 1.2);
+    final scaler = MediaQuery.textScalerOf(context)
+        .clamp(minScaleFactor: 0.9, maxScaleFactor: 1.2);
     final h = MediaQuery.sizeOf(context).height;
     final compact = h < 720; // modo compacto automático
 
@@ -251,7 +257,9 @@ class _HomeScreenState extends State<HomeScreen> {
           elevation: 0,
           backgroundColor: Colors.white,
           title: Row(children: [
-            SizedBox(height: compact ? 44 : 56, child: Image.asset('assets/admin.lav1.png')),
+            SizedBox(
+                height: compact ? 44 : 56,
+                child: Image.asset('assets/admin.lav1.png')),
           ]),
           actions: [
             IconButton(
@@ -266,15 +274,20 @@ class _HomeScreenState extends State<HomeScreen> {
               ? const Center(child: CircularProgressIndicator())
               : LayoutBuilder(builder: (context, c) {
                   final wide = c.maxWidth >= 980;
-                  return Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 1140),
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(
-                            horizontal: 16, vertical: compact ? 12 : 24),
-                        child: wide
-                            ? _wideLayout(fechaStr, compact: compact)
-                            : _narrowLayout(fechaStr, compact: compact),
+                  final padding = EdgeInsets.symmetric(
+                      horizontal: 16, vertical: compact ? 12 : 24);
+                  final content = wide
+                      ? _wideLayout(fechaStr, compact: compact)
+                      : _narrowLayout(fechaStr, compact: compact);
+                  return Align(
+                    alignment: Alignment.topCenter,
+                    child: SingleChildScrollView(
+                      padding: padding,
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 1140),
+                          child: content,
+                        ),
                       ),
                     ),
                   );
@@ -284,7 +297,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ===== Layouts sin scroll =====
+  // ===== Layouts =====
   Widget _wideLayout(String fechaStr, {required bool compact}) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -297,25 +310,27 @@ class _HomeScreenState extends State<HomeScreen> {
               _tilePrimary(
                 Icons.person_add_alt_1,
                 'Check in',
-                () => _go(CheckInScreen(tenantId: widget.tenantId, role: widget.role)),
+                () => _go(CheckInScreen(
+                    tenantId: widget.tenantId, role: widget.role)),
               ),
               SizedBox(height: compact ? 8 : 12),
               _tilePrimary(
                 Icons.playlist_add_check,
                 'Cola de trabajo',
-                () => _go(ColaScreen(tenantId: widget.tenantId, role: widget.role)),
+                () => _go(
+                    ColaScreen(tenantId: widget.tenantId, role: widget.role)),
               ),
               SizedBox(height: compact ? 8 : 12),
               _tileAccent(
                 Icons.receipt_long,
                 'Registrar Gasto',
                 () => _go(
-                      RegistroGastoScreen(
-                        tenantId: widget.tenantId,
-                        role: widget.role,
-                        selectedDate: DateTime(today.year, today.month, today.day),
-                      ),
-                    ),
+                  RegistroGastoScreen(
+                    tenantId: widget.tenantId,
+                    role: widget.role,
+                    selectedDate: DateTime(today.year, today.month, today.day),
+                  ),
+                ),
               ),
               // Solo admin: botones extra
               if (!isOperator) ...[
@@ -359,7 +374,8 @@ class _HomeScreenState extends State<HomeScreen> {
         _tilePrimary(
           Icons.person_add_alt_1,
           'Check in',
-          () => _go(CheckInScreen(tenantId: widget.tenantId, role: widget.role)),
+          () =>
+              _go(CheckInScreen(tenantId: widget.tenantId, role: widget.role)),
         ),
         SizedBox(height: compact ? 8 : 12),
         _tilePrimary(
@@ -372,12 +388,12 @@ class _HomeScreenState extends State<HomeScreen> {
           Icons.receipt_long,
           'Registrar Gasto',
           () => _go(
-                RegistroGastoScreen(
-                  tenantId: widget.tenantId,
-                  role: widget.role,
-                  selectedDate: DateTime(today.year, today.month, today.day),
-                ),
-              ),
+            RegistroGastoScreen(
+              tenantId: widget.tenantId,
+              role: widget.role,
+              selectedDate: DateTime(today.year, today.month, today.day),
+            ),
+          ),
         ),
         if (!isOperator) ...[
           SizedBox(height: compact ? 8 : 12),
@@ -429,7 +445,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   onTap: disableNav
                       ? () {}
                       : () {
-                          setState(() => today = today.subtract(const Duration(days: 1)));
+                          setState(() =>
+                              today = today.subtract(const Duration(days: 1)));
                           cargarResumenDelDia();
                         },
                 ),
@@ -467,21 +484,26 @@ class _HomeScreenState extends State<HomeScreen> {
                           horizontal: 10, vertical: compact ? 4 : 6),
                       child: Row(
                         children: [
-                          const Icon(Icons.calendar_month, color: Colors.white, size: 18),
+                          const Icon(Icons.calendar_month,
+                              color: Colors.white, size: 18),
                           const SizedBox(width: 6),
                           AnimatedSwitcher(
                             duration: const Duration(milliseconds: 160),
                             transitionBuilder: (c, a) => FadeTransition(
                               opacity: a,
                               child: SlideTransition(
-                                position: a.drive(Tween(begin: const Offset(0, .1), end: Offset.zero)),
+                                position: a.drive(Tween(
+                                    begin: const Offset(0, .1),
+                                    end: Offset.zero)),
                                 child: c,
                               ),
                             ),
                             child: Text(
                               fechaStr,
                               key: ValueKey(fechaStr),
-                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600),
                             ),
                           ),
                         ],
@@ -499,7 +521,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   onTap: disableNav
                       ? () {}
                       : () {
-                          setState(() => today = today.add(const Duration(days: 1)));
+                          setState(
+                              () => today = today.add(const Duration(days: 1)));
                           cargarResumenDelDia();
                         },
                 ),
@@ -511,12 +534,16 @@ class _HomeScreenState extends State<HomeScreen> {
 
         // Card resumen
         Container(
-          padding: EdgeInsets.symmetric(horizontal: compact ? 16 : 20, vertical: compact ? 14 : 18),
+          padding: EdgeInsets.symmetric(
+              horizontal: compact ? 16 : 20, vertical: compact ? 14 : 18),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(_radius),
             boxShadow: const [
-              BoxShadow(color: Color(0x11000000), blurRadius: 10, offset: Offset(0, 3))
+              BoxShadow(
+                  color: Color(0x11000000),
+                  blurRadius: 10,
+                  offset: Offset(0, 3))
             ],
           ),
           child: Column(
@@ -537,7 +564,8 @@ class _HomeScreenState extends State<HomeScreen> {
               _row('Efectivo', _animNum(fmt(totalEfectivo))),
               _row('Transferencia', _animNum(fmt(totalTransferencia))),
               _row('Otros', _animNum(fmt(totalOtro))),
-              _row('Total ingresos', _animNum(fmt(ingresosTotales), bold: true)),
+              _row(
+                  'Total ingresos', _animNum(fmt(ingresosTotales), bold: true)),
               const SizedBox(height: 10),
               const Divider(height: 24, color: Color(0xFFEAECEF)),
 
@@ -551,13 +579,15 @@ class _HomeScreenState extends State<HomeScreen> {
                   icon: Icons.receipt_long,
                   label: 'resumen',
                   onPressed: () {
-                    final inicioDia = DateTime(today.year, today.month, today.day);
+                    final inicioDia =
+                        DateTime(today.year, today.month, today.day);
                     final finDia = inicioDia.add(const Duration(days: 1));
                     Navigator.push(
                       context,
                       MaterialPageRoute(
                         builder: (_) => ResumenGastosScreen(
-                          initialRange: DateTimeRange(start: inicioDia, end: finDia),
+                          initialRange:
+                              DateTimeRange(start: inicioDia, end: finDia),
                         ),
                       ),
                     ).then((_) => cargarResumenDelDia());
@@ -566,7 +596,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
               // PAGO LAVADORES: el operador no puede editar porcentaje
               if (isOperator)
-                _row('Pago a lavadores (${(porcLav * 100).round()}%)', _animNum(fmt(pagoLavadores)))
+                _row('Pago a lavadores (${(porcLav * 100).round()}%)',
+                    _animNum(fmt(pagoLavadores)))
               else
                 _rowWithActionLeft(
                   'Pago a lavadores (${(porcLav * 100).round()}%)',
@@ -575,8 +606,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   label: 'editar',
                   onPressed: _editarPorcLav,
                 ),
-                _row('Cierre efectivo', _animNum(fmt(cierreEfectivoCaja), bold: true)),
-SizedBox(height: compact ? 6 : 8),
+              _row('Cierre efectivo',
+                  _animNum(fmt(cierreEfectivoCaja), bold: true)),
+              SizedBox(height: compact ? 6 : 8),
 
               SizedBox(height: compact ? 8 : 12),
               _cierreCinta(cierreEfectivo),
@@ -596,7 +628,8 @@ SizedBox(height: compact ? 6 : 8),
                 'En cola',
                 const Color(0xFFF59E0B),
                 compact: compact,
-                onTap: () => _go(ColaScreen(tenantId: widget.tenantId, role: widget.role)),
+                onTap: () => _go(
+                    ColaScreen(tenantId: widget.tenantId, role: widget.role)),
               ),
             ),
             const SizedBox(width: 8),
@@ -607,7 +640,8 @@ SizedBox(height: compact ? 6 : 8),
                 'En lavado',
                 const Color(0xFF3B82F6),
                 compact: compact,
-                onTap: () => _go(ColaScreen(tenantId: widget.tenantId, role: widget.role)),
+                onTap: () => _go(
+                    ColaScreen(tenantId: widget.tenantId, role: widget.role)),
               ),
             ),
             const SizedBox(width: 8),
@@ -618,7 +652,8 @@ SizedBox(height: compact ? 6 : 8),
                 'Listos',
                 const Color(0xFF10B981),
                 compact: compact,
-                onTap: () => _go(ColaScreen(tenantId: widget.tenantId, role: widget.role)),
+                onTap: () => _go(
+                    ColaScreen(tenantId: widget.tenantId, role: widget.role)),
               ),
             ),
           ],
@@ -635,7 +670,8 @@ SizedBox(height: compact ? 6 : 8),
       child: Text(
         text,
         key: ValueKey(text),
-        style: _numStyle.copyWith(fontWeight: bold ? FontWeight.w800 : FontWeight.w700),
+        style: _numStyle.copyWith(
+            fontWeight: bold ? FontWeight.w800 : FontWeight.w700),
       ),
     );
   }
@@ -653,7 +689,9 @@ SizedBox(height: compact ? 6 : 8),
   }
 
   Widget _rowWithActionLeft(String l, Widget r,
-      {required IconData icon, required String label, required VoidCallback onPressed}) {
+      {required IconData icon,
+      required String label,
+      required VoidCallback onPressed}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
@@ -698,7 +736,8 @@ SizedBox(height: compact ? 6 : 8),
         children: [
           Icon(ok ? Icons.trending_up : Icons.trending_down, color: color),
           const SizedBox(width: 8),
-          Text('CIERRE NETO: ${fmt(cierre)}', style: TextStyle(color: color, fontWeight: FontWeight.w800)),
+          Text('CIERRE NETO: ${fmt(cierre)}',
+              style: TextStyle(color: color, fontWeight: FontWeight.w800)),
         ],
       ),
     );
@@ -716,7 +755,8 @@ SizedBox(height: compact ? 6 : 8),
             height: 3,
             decoration: BoxDecoration(
               color: topBar,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(14)),
             ),
           ),
           Padding(
@@ -727,7 +767,8 @@ SizedBox(height: compact ? 6 : 8),
                 SizedBox(height: compact ? 4 : 6),
                 AnimatedSwitcher(
                   duration: const Duration(milliseconds: 150),
-                  transitionBuilder: (c, a) => FadeTransition(opacity: a, child: c),
+                  transitionBuilder: (c, a) =>
+                      FadeTransition(opacity: a, child: c),
                   child: Text(
                     '$valor',
                     key: ValueKey(valor),
@@ -739,7 +780,9 @@ SizedBox(height: compact ? 6 : 8),
                   ),
                 ),
                 SizedBox(height: compact ? 1 : 2),
-                Text(etiqueta, style: TextStyle(fontSize: compact ? 11 : 12, color: Colors.black54)),
+                Text(etiqueta,
+                    style: TextStyle(
+                        fontSize: compact ? 11 : 12, color: Colors.black54)),
               ],
             ),
           ),
@@ -749,11 +792,15 @@ SizedBox(height: compact ? 6 : 8),
 
     return onTap == null
         ? child
-        : InkWell(borderRadius: BorderRadius.circular(14), onTap: onTap, child: child);
+        : InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: onTap,
+            child: child);
   }
 
   Widget _tilePrimary(IconData icon, String label, VoidCallback onTap) {
-    return _tileBase(icon: icon, label: label, onTap: onTap, bg: kPrimary, fg: Colors.white);
+    return _tileBase(
+        icon: icon, label: label, onTap: onTap, bg: kPrimary, fg: Colors.white);
   }
 
   Widget _tileSecondary(IconData icon, String label, VoidCallback onTap) {
@@ -790,13 +837,16 @@ SizedBox(height: compact ? 6 : 8),
       borderRadius: BorderRadius.circular(14),
       onTap: onTap,
       child: Ink(
-        decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(14), border: border),
+        decoration: BoxDecoration(
+            color: bg, borderRadius: BorderRadius.circular(14), border: border),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         child: Row(
           children: [
             Icon(icon, color: fg),
             const SizedBox(width: 10),
-            Expanded(child: Text(label, style: TextStyle(color: fg, fontWeight: FontWeight.w700))),
+            Expanded(
+                child: Text(label,
+                    style: TextStyle(color: fg, fontWeight: FontWeight.w700))),
             Icon(Icons.chevron_right, color: fg),
           ],
         ),
@@ -811,23 +861,10 @@ SizedBox(height: compact ? 6 : 8),
       child: Container(
         width: 32,
         height: 32,
-        decoration: BoxDecoration(color: Colors.white.withValues(alpha: .12), shape: BoxShape.circle),
+        decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: .12), shape: BoxShape.circle),
         child: Icon(icon, color: Colors.white),
       ),
     );
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -1,4 +1,4 @@
-﻿// resumen_gastos_screen.dart
+// resumen_gastos_screen.dart
 import 'dart:ui' show FontFeature;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -91,8 +91,8 @@ class _ResumenGastosScreenState extends State<ResumenGastosScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final scaler =
-        MediaQuery.textScalerOf(context).clamp(minScaleFactor: 0.9, maxScaleFactor: 1.15);
+    final scaler = MediaQuery.textScalerOf(context)
+        .clamp(minScaleFactor: 0.9, maxScaleFactor: 1.15);
 
     final q = FirebaseFirestore.instance
         .collection('users')
@@ -114,7 +114,9 @@ class _ResumenGastosScreenState extends State<ResumenGastosScreen> {
           backgroundColor: Colors.white,
           iconTheme: const IconThemeData(color: kPrimary),
           titleTextStyle: const TextStyle(
-            color: kPrimary, fontSize: 20, fontWeight: FontWeight.w600,
+            color: kPrimary,
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
           ),
           title: const Text('Resumen de gastos'),
           centerTitle: true,
@@ -191,7 +193,8 @@ class _ResumenGastosScreenState extends State<ResumenGastosScreen> {
                                   ],
                                 )
                               : Column(
-                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
                                   children: [
                                     btn,
                                     const SizedBox(height: 8),
@@ -222,12 +225,14 @@ class _ResumenGastosScreenState extends State<ResumenGastosScreen> {
                       ),
                       child: TextField(
                         controller: _searchCtrl,
-                        onChanged: (v) => setState(() => _search = v.trim().toLowerCase()),
+                        onChanged: (v) =>
+                            setState(() => _search = v.trim().toLowerCase()),
                         decoration: const InputDecoration(
                           hintText: 'Buscar gasto por nombre',
                           prefixIcon: Icon(Icons.search),
                           border: InputBorder.none,
-                          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                          contentPadding: EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 14),
                         ),
                       ),
                     ),
@@ -247,7 +252,8 @@ class _ResumenGastosScreenState extends State<ResumenGastosScreen> {
                             );
                           }
                           if (!s.hasData) {
-                            return const Center(child: CircularProgressIndicator());
+                            return const Center(
+                                child: CircularProgressIndicator());
                           }
 
                           final allDocs = s.data!.docs;
@@ -255,12 +261,16 @@ class _ResumenGastosScreenState extends State<ResumenGastosScreen> {
                               ? allDocs
                               : allDocs.where((d) {
                                   final x = d.data();
-                                  final desc = (x['descripcion'] ?? '').toString().toLowerCase();
+                                  final desc = (x['descripcion'] ?? '')
+                                      .toString()
+                                      .toLowerCase();
                                   return desc.contains(_search);
                                 }).toList();
                           final total = docs.fold<double>(
                             0,
-                            (a, d) => a + ((d.data()['monto'] as num?)?.toDouble() ?? 0),
+                            (a, d) =>
+                                a +
+                                ((d.data()['monto'] as num?)?.toDouble() ?? 0),
                           );
 
                           if (docs.isEmpty) {
@@ -269,7 +279,8 @@ class _ResumenGastosScreenState extends State<ResumenGastosScreen> {
                               children: [
                                 _TotalCard(total: total, fmt: _fmtMoney),
                                 const Expanded(
-                                  child: Center(child: Text('Sin gastos en el rango.')),
+                                  child: Center(
+                                      child: Text('Sin gastos en el rango.')),
                                 ),
                               ],
                             );
@@ -283,7 +294,8 @@ class _ResumenGastosScreenState extends State<ResumenGastosScreen> {
                                 child: Container(
                                   decoration: BoxDecoration(
                                     color: Colors.white,
-                                    borderRadius: BorderRadius.circular(_radius),
+                                    borderRadius:
+                                        BorderRadius.circular(_radius),
                                     boxShadow: const [
                                       BoxShadow(
                                         color: Color(0x11000000),
@@ -295,8 +307,8 @@ class _ResumenGastosScreenState extends State<ResumenGastosScreen> {
                                   child: ListView.separated(
                                     padding: const EdgeInsets.all(8),
                                     itemCount: docs.length,
-                                    separatorBuilder: (_, __) =>
-                                        const Divider(height: 1, color: Color(0xFFEAECEF)),
+                                    separatorBuilder: (_, __) => const Divider(
+                                        height: 1, color: Color(0xFFEAECEF)),
                                     itemBuilder: (_, i) {
                                       final x = docs[i].data();
                                       final monto =
@@ -307,20 +319,52 @@ class _ResumenGastosScreenState extends State<ResumenGastosScreen> {
                                           : DateTime.now();
                                       final desc =
                                           (x['descripcion'] ?? '').toString();
+                                      final metodo =
+                                          (x['metodo_pago'] as String?) ??
+                                              'efectivo';
+                                      final tipo = (x['tipo_gasto']
+                                              as String?) ??
+                                          ((x['afecta_resumen_diario'] == false)
+                                              ? 'general'
+                                              : 'diario');
+                                      final metodoLabel =
+                                          metodo == 'transferencia'
+                                              ? 'Transferencia'
+                                              : 'Efectivo';
+                                      final tipoLabel = tipo == 'general'
+                                          ? 'General'
+                                          : 'Diario';
 
                                       return ListTile(
-                                        contentPadding: const EdgeInsets.symmetric(
-                                            horizontal: 8, vertical: 2),
+                                        contentPadding:
+                                            const EdgeInsets.symmetric(
+                                                horizontal: 8, vertical: 2),
                                         title: Text(
-                                          desc.isEmpty ? '(sin descripciÃ³n)' : desc,
+                                          desc.isEmpty
+                                              ? '(sin descripciÃ³n)'
+                                              : desc,
                                           style: const TextStyle(
                                               fontWeight: FontWeight.w500),
                                           maxLines: 2,
                                           overflow: TextOverflow.ellipsis,
                                         ),
-                                        subtitle: Text(_fmtFecha(fecha)),
-                                        trailing:
-                                            Text(_fmtMoney(monto), style: _numStyle),
+                                        subtitle: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(_fmtFecha(fecha)),
+                                            Text(
+                                              'Pago: $metodoLabel | Tipo: $tipoLabel',
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                                color: Colors.black54,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        trailing: Text(_fmtMoney(monto),
+                                            style: _numStyle),
                                       );
                                     },
                                   ),
@@ -394,8 +438,5 @@ class _HintText extends StatelessWidget {
       textAlign: alignCenter ? TextAlign.center : TextAlign.start,
       style: const TextStyle(fontSize: 12, color: Colors.black54),
     );
-    }
+  }
 }
-
-
-
