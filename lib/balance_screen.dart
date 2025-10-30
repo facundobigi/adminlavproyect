@@ -117,12 +117,23 @@ class _BalanceScreenState extends State<BalanceScreen> {
         .where('fecha', isGreaterThanOrEqualTo: inicio)
         .where('fecha', isLessThan: fin)
         .get();
-    final gast = gastos.docs.fold<double>(0, (s, d) => s + (((d.data() as Map)['monto'] as num?)?.toDouble() ?? 0.0));
+
+    double gastoTotal = 0;
+    double gastoNoTransfer = 0;
+    for (final d in gastos.docs) {
+      final data = d.data() as Map<String, dynamic>;
+      final monto = (data['monto'] as num?)?.toDouble() ?? 0.0;
+      final metodo = (data['metodo_pago'] as String?)?.toLowerCase();
+      gastoTotal += monto;
+      if (metodo != 'transferencia') {
+        gastoNoTransfer += monto;
+      }
+    }
 
     final ingresos = efectivo + transferencia + otro;
     final pagoLav = ingresos * _porcLav;
-    final cierre = ingresos - gast - pagoLav;
-    final cierreCash = efectivo - gast - pagoLav;
+    final cierre = ingresos - gastoTotal - pagoLav;
+    final cierreCash = efectivo - gastoNoTransfer - pagoLav;
 
     if (!mounted) return;
     setState(() {
@@ -131,7 +142,7 @@ class _BalanceScreenState extends State<BalanceScreen> {
       totalTransferencia = transferencia;
       totalOtro = otro;
       totalIngresos = ingresos;
-      totalGastos = gast;
+      totalGastos = gastoTotal;
       totalLavadores = pagoLav;
       cierreNeto = cierre;
       cierreEfectivo = cierreCash;
