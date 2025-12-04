@@ -1,5 +1,7 @@
 // resumen_gastos_screen.dart
 import 'dart:ui' show FontFeature;
+import 'dart:convert';
+import 'dart:html' as html;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -87,6 +89,44 @@ class _ResumenGastosScreenState extends State<ResumenGastosScreen> {
       ),
     );
     if (res != null) setState(() => _rango = res);
+  }
+
+  Future<void> _exportarGastosCsv(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+  ) async {
+    if (docs.isEmpty) return;
+
+    final csv = StringBuffer();
+    csv.writeln('Gasto;Monto;Fecha');
+
+    for (final d in docs) {
+      final data = d.data();
+      final desc =
+          (data['descripcion'] ?? '').toString().replaceAll('"', "'");
+      final monto = (data['monto'] as num?)?.toDouble() ?? 0.0;
+
+      final ts = data['fecha'];
+      final fecha = ts is Timestamp ? ts.toDate() : null;
+      final fechaStr =
+          fecha != null ? DateFormat('dd/MM/yyyy').format(fecha) : '';
+
+      csv.writeln('"$desc";${monto.toStringAsFixed(2)};$fechaStr');
+    }
+
+    final inicio = _rango.start;
+    final finReal = _rango.end.subtract(const Duration(days: 1));
+    final fileName =
+        'gastos_${DateFormat('yyyyMMdd').format(inicio)}_${DateFormat('yyyyMMdd').format(finReal)}.csv';
+
+    final bytes = utf8.encode(csv.toString());
+    final blob = html.Blob([bytes], 'text/csv;charset=utf-8');
+    final url = html.Url.createObjectUrlFromBlob(blob);
+    final a = html.AnchorElement(href: url)..download = fileName;
+
+    html.document.body!.append(a);
+    a.click();
+    a.remove();
+    html.Url.revokeObjectUrl(url);
   }
 
   @override
@@ -289,6 +329,15 @@ class _ResumenGastosScreenState extends State<ResumenGastosScreen> {
                           return Column(
                             children: [
                               _TotalCard(total: total, fmt: _fmtMoney),
+                              const SizedBox(height: 8),
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: TextButton.icon(
+                                  onPressed: () => _exportarGastosCsv(docs),
+                                  icon: const Icon(Icons.file_download),
+                                  label: const Text('Exportar Excel'),
+                                ),
+                              ),
                               const SizedBox(height: 8),
                               Expanded(
                                 child: Container(
