@@ -37,17 +37,13 @@ class _RegistroGastoScreenState extends State<RegistroGastoScreen> {
           .doc(widget.tenantId)
           .collection('gastos');
 
-  double _parseMonto(String value) {
-    return double.parse(value.trim().replaceAll(',', '.'));
-  }
-
   Future<void> guardarGasto() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
 
     try {
       final descripcion = _descripcionController.text.trim();
-      final monto = _parseMonto(_montoController.text);
+      final monto = double.parse(_montoController.text.trim());
 
       final baseDay = widget.selectedDate;
       final now = DateTime.now();
@@ -113,19 +109,11 @@ class _RegistroGastoScreenState extends State<RegistroGastoScreen> {
           centerTitle: true,
         ),
         body: SafeArea(
-          child: Align(
-            alignment: Alignment.topCenter,
+          child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: _panelMaxW),
-              child: SingleChildScrollView(
-                keyboardDismissBehavior:
-                    ScrollViewKeyboardDismissBehavior.onDrag,
-                padding: EdgeInsets.fromLTRB(
-                  16,
-                  20,
-                  16,
-                  MediaQuery.viewInsetsOf(context).bottom + 16,
-                ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -202,12 +190,10 @@ class _RegistroGastoScreenState extends State<RegistroGastoScreen> {
                                       decimal: true),
                               inputFormatters: [
                                 FilteringTextInputFormatter.allow(
-                                    RegExp(r'^\d*([,.]\d{0,2})?')),
+                                    RegExp(r'^\d*\.?\d{0,2}')),
                               ],
                               validator: (value) {
-                                final raw = (value ?? '').trim();
-                                final monto =
-                                    double.tryParse(raw.replaceAll(',', '.'));
+                                final monto = double.tryParse(value ?? '');
                                 if (monto == null || monto <= 0) {
                                   return 'Ingresá un monto válido';
                                 }

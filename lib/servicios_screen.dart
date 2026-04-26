@@ -43,8 +43,10 @@ class _ServiciosScreenState extends State<ServiciosScreen> {
   String _cleanSpaces(String s) => s.replaceAll(RegExp(r'\s+'), ' ').trim();
   String _cap(String w) =>
       w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1).toLowerCase()}';
-  String _titleCase(String s) =>
-      _cleanSpaces(s).split(' ').map((p) => p.split('-').map(_cap).join('-')).join(' ');
+  String _titleCase(String s) => _cleanSpaces(s)
+      .split(' ')
+      .map((p) => p.split('-').map(_cap).join('-'))
+      .join(' ');
 
   // InputFormatter para nombre con caracteres ES
   static final _nombreAllow =
@@ -52,145 +54,166 @@ class _ServiciosScreenState extends State<ServiciosScreen> {
 
   // -------- Editor (con showGeneralDialog estable en web) --------
   Future<void> _showEdit({DocumentSnapshot<Map<String, dynamic>>? doc}) async {
-  final data = doc?.data() ?? {};
-  final nombre = TextEditingController(text: _titleCase((data['nombre'] ?? '') as String));
-  final precio = TextEditingController(
-    text: (data['precio'] is num) ? (data['precio'] as num).toStringAsFixed(0) : '',
-  );
-  final dur = (data['duracion_min'] as num?)?.toInt() ?? 0;
-  final horas = TextEditingController(text: (dur ~/ 60).toString());
-  final minutos = TextEditingController(text: (dur % 60).toString());
-  final form = GlobalKey<FormState>();
+    final data = doc?.data() ?? {};
+    final nombre = TextEditingController(
+        text: _titleCase((data['nombre'] ?? '') as String));
+    final precio = TextEditingController(
+      text: (data['precio'] is num)
+          ? (data['precio'] as num).toStringAsFixed(0)
+          : '',
+    );
+    final dur = (data['duracion_min'] as num?)?.toInt() ?? 0;
+    final horas = TextEditingController(text: (dur ~/ 60).toString());
+    final minutos = TextEditingController(text: (dur % 60).toString());
+    final form = GlobalKey<FormState>();
 
-  Future<void> guardar() async {
-    if (!form.currentState!.validate()) return;
-    final h = int.tryParse(horas.text) ?? 0;
-    final m = int.tryParse(minutos.text) ?? 0;
-    final durMin = h * 60 + m;
-    final price = _parseMoney(precio.text);
-    if (durMin <= 0) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Duración debe ser > 0')),
-        );
+    Future<void> guardar() async {
+      if (!form.currentState!.validate()) return;
+      final h = int.tryParse(horas.text) ?? 0;
+      final m = int.tryParse(minutos.text) ?? 0;
+      final durMin = h * 60 + m;
+      final price = _parseMoney(precio.text);
+      if (durMin <= 0) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Duración debe ser > 0')),
+          );
+        }
+        return;
       }
-      return;
+      final payload = {
+        'nombre': _titleCase(nombre.text),
+        'precio': price,
+        'duracion_min': durMin,
+        'updated_at': FieldValue.serverTimestamp(),
+        if (doc == null) 'activo': true,
+      };
+      final col = FirebaseFirestore.instance
+          .collection('users')
+          .doc(_uid)
+          .collection('servicios');
+      if (doc == null) {
+        await col.add({...payload, 'created_at': FieldValue.serverTimestamp()});
+      } else {
+        await doc.reference.update(payload);
+      }
+      if (context.mounted) Navigator.of(context, rootNavigator: true).pop(true);
     }
-    final payload = {
-      'nombre': _titleCase(nombre.text),
-      'precio': price,
-      'duracion_min': durMin,
-      'updated_at': FieldValue.serverTimestamp(),
-      if (doc == null) 'activo': true,
-    };
-    final col = FirebaseFirestore.instance
-        .collection('users').doc(_uid).collection('servicios');
-    if (doc == null) {
-      await col.add({...payload, 'created_at': FieldValue.serverTimestamp()});
-    } else {
-      await doc.reference.update(payload);
-    }
-    if (!mounted) return;
-    Navigator.of(context, rootNavigator: true).pop(true);
-  }
 
-  final res = await showDialog<bool>(
-    context: context,
-    barrierDismissible: true,
-    useSafeArea: true,
-    builder: (_) => Dialog(
-      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(_radius)),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(minWidth: 320, maxWidth: 560),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
-          child: Form(
-            key: form,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(doc == null ? 'Nuevo servicio' : 'Editar servicio',
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: nombre,
-                  autofocus: true,
-                  decoration: const InputDecoration(labelText: 'Nombre', hintText: 'Ej: Lavado Premium'),
-                  textCapitalization: TextCapitalization.words,
-                  inputFormatters: [_nombreAllow, LengthLimitingTextInputFormatter(40)],
-                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Requerido' : null,
-                  onEditingComplete: () {
-                    nombre.text = _titleCase(nombre.text);
-                    FocusScope.of(context).nextFocus();
-                  },
-                ),
-                const SizedBox(height: 10),
-                TextFormField(
-                  controller: precio,
-                  decoration: const InputDecoration(labelText: 'Precio', prefixText: '\$ '),
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
-                  validator: (v) => _parseMoney(v ?? '') > 0 ? null : 'Inválido',
-                ),
-                const SizedBox(height: 10),
-                LayoutBuilder(builder: (_, c) {
-                  final narrow = c.maxWidth < 420;
-                  final horasField = TextFormField(
-                    controller: horas,
-                    decoration: const InputDecoration(labelText: 'Horas'),
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    validator: (v) => (int.tryParse(v ?? '') ?? 0) >= 0 ? null : 'Inválido',
-                  );
-                  final minutosField = TextFormField(
-                    controller: minutos,
-                    decoration: const InputDecoration(labelText: 'Minutos (0–59)'),
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    validator: (v) {
-                      final m = int.tryParse(v ?? '') ?? -1;
-                      return (m >= 0 && m < 60) ? null : '0–59';
+    final res = await showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      useSafeArea: true,
+      builder: (_) => Dialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(_radius)),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minWidth: 320, maxWidth: 560),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+            child: Form(
+              key: form,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                        doc == null ? 'Nuevo servicio' : 'Editar servicio',
+                        style: const TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.w700)),
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: nombre,
+                    autofocus: true,
+                    decoration: const InputDecoration(
+                        labelText: 'Nombre', hintText: 'Ej: Lavado Premium'),
+                    textCapitalization: TextCapitalization.words,
+                    inputFormatters: [
+                      _nombreAllow,
+                      LengthLimitingTextInputFormatter(40)
+                    ],
+                    validator: (v) =>
+                        (v == null || v.trim().isEmpty) ? 'Requerido' : null,
+                    onEditingComplete: () {
+                      nombre.text = _titleCase(nombre.text);
+                      FocusScope.of(context).nextFocus();
                     },
-                  );
-                  return narrow
-                      ? Column(children: [
-                          horasField,
-                          const SizedBox(height: 10),
-                          minutosField,
-                        ])
-                      : Row(children: [
-                          Expanded(child: horasField),
-                          const SizedBox(width: 12),
-                          Expanded(child: minutosField),
-                        ]);
-                }),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton(
-                      onPressed: () => Navigator.of(context, rootNavigator: true).pop(false),
-                      child: const Text('Cancelar'),
-                    ),
-                    const SizedBox(width: 8),
-                    ElevatedButton(onPressed: guardar, child: const Text('Guardar')),
-                  ],
-                ),
-              ],
+                  ),
+                  const SizedBox(height: 10),
+                  TextFormField(
+                    controller: precio,
+                    decoration: const InputDecoration(
+                        labelText: 'Precio', prefixText: '\$ '),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))
+                    ],
+                    validator: (v) =>
+                        _parseMoney(v ?? '') > 0 ? null : 'Inválido',
+                  ),
+                  const SizedBox(height: 10),
+                  LayoutBuilder(builder: (_, c) {
+                    final narrow = c.maxWidth < 420;
+                    final horasField = TextFormField(
+                      controller: horas,
+                      decoration: const InputDecoration(labelText: 'Horas'),
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      validator: (v) =>
+                          (int.tryParse(v ?? '') ?? 0) >= 0 ? null : 'Inválido',
+                    );
+                    final minutosField = TextFormField(
+                      controller: minutos,
+                      decoration:
+                          const InputDecoration(labelText: 'Minutos (0–59)'),
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      validator: (v) {
+                        final m = int.tryParse(v ?? '') ?? -1;
+                        return (m >= 0 && m < 60) ? null : '0–59';
+                      },
+                    );
+                    return narrow
+                        ? Column(children: [
+                            horasField,
+                            const SizedBox(height: 10),
+                            minutosField,
+                          ])
+                        : Row(children: [
+                            Expanded(child: horasField),
+                            const SizedBox(width: 12),
+                            Expanded(child: minutosField),
+                          ]);
+                  }),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () =>
+                            Navigator.of(context, rootNavigator: true)
+                                .pop(false),
+                        child: const Text('Cancelar'),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                          onPressed: guardar, child: const Text('Guardar')),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         ),
       ),
-    ),
-  );
+    );
 
-  if (res == true) setState(() {}); // refresca lista si hubo cambios
-}
-
+    if (res == true) setState(() {}); // refresca lista si hubo cambios
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -212,7 +235,9 @@ class _ServiciosScreenState extends State<ServiciosScreen> {
           backgroundColor: Colors.white,
           iconTheme: const IconThemeData(color: kPrimary),
           titleTextStyle: const TextStyle(
-            color: kPrimary, fontSize: 20, fontWeight: FontWeight.w600,
+            color: kPrimary,
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
           ),
           title: const Text('Gestionar servicios'),
           centerTitle: true,
@@ -239,32 +264,43 @@ class _ServiciosScreenState extends State<ServiciosScreen> {
                           final narrow = c.maxWidth < 440;
                           return Row(
                             children: [
-                              const Icon(Icons.build_rounded, color: Colors.white),
+                              const Icon(Icons.build_rounded,
+                                  color: Colors.white),
                               const SizedBox(width: 8),
                               const Text(
                                 'Servicios',
-                                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+                                style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600),
                               ),
                               const Spacer(),
                               if (!narrow)
                                 OutlinedButton.icon(
                                   onPressed: () => _showEdit(),
-                                  icon: const Icon(Icons.add, size: 18, color: Colors.white),
+                                  icon: const Icon(Icons.add,
+                                      size: 18, color: Colors.white),
                                   label: const Text(
                                     'Agregar servicio',
-                                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                                    style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w600),
                                   ),
                                   style: OutlinedButton.styleFrom(
                                     side: const BorderSide(color: Colors.white),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(10)),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 10, vertical: 8),
                                   ),
                                 )
                               else
                                 IconButton(
                                   tooltip: 'Agregar servicio',
                                   onPressed: () => _showEdit(),
-                                  icon: const Icon(Icons.add_circle, color: Colors.white),
+                                  icon: const Icon(Icons.add_circle,
+                                      color: Colors.white),
                                 ),
                             ],
                           );
@@ -280,32 +316,44 @@ class _ServiciosScreenState extends State<ServiciosScreen> {
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(_radius),
                           boxShadow: const [
-                            BoxShadow(color: Color(0x11000000), blurRadius: 10, offset: Offset(0, 3))
+                            BoxShadow(
+                                color: Color(0x11000000),
+                                blurRadius: 10,
+                                offset: Offset(0, 3))
                           ],
                         ),
-                        child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                        child:
+                            StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                           stream: q.snapshots(),
                           builder: (_, s) {
-                            if (s.hasError) return Center(child: Text('Error: ${s.error}'));
-                            if (!s.hasData) return const Center(child: CircularProgressIndicator());
+                            if (s.hasError)
+                              return Center(child: Text('Error: ${s.error}'));
+                            if (!s.hasData)
+                              return const Center(
+                                  child: CircularProgressIndicator());
                             final docs = s.data!.docs;
                             if (docs.isEmpty) {
-                              return const Center(child: Text('Sin servicios. Usá “Agregar servicio”.'));
+                              return const Center(
+                                  child: Text(
+                                      'Sin servicios. Usá “Agregar servicio”.'));
                             }
 
                             return ListView.separated(
                               padding: const EdgeInsets.all(12),
                               itemCount: docs.length,
-                              separatorBuilder: (_, __) => const SizedBox(height: 8),
+                              separatorBuilder: (_, __) =>
+                                  const SizedBox(height: 8),
                               itemBuilder: (_, i) {
                                 final d = docs[i];
                                 final x = d.data();
                                 final activo = (x['activo'] as bool?) ?? true;
                                 final precio = (x['precio'] as num?) ?? 0;
-                                final mins = (x['duracion_min'] as num?)?.toInt() ?? 0;
+                                final mins =
+                                    (x['duracion_min'] as num?)?.toInt() ?? 0;
 
                                 return _ServiceItem(
-                                  nombre: _titleCase((x['nombre'] ?? '') as String),
+                                  nombre:
+                                      _titleCase((x['nombre'] ?? '') as String),
                                   precio: _fmtMoney(precio),
                                   duracion: _fmtDurMin(mins),
                                   activo: activo,
@@ -319,12 +367,20 @@ class _ServiciosScreenState extends State<ServiciosScreen> {
                                       context: context,
                                       builder: (_) => AlertDialog(
                                         shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(_radius)),
+                                            borderRadius:
+                                                BorderRadius.circular(_radius)),
                                         title: const Text('Eliminar servicio'),
-                                        content: const Text('¿Confirmás eliminar?'),
+                                        content:
+                                            const Text('¿Confirmás eliminar?'),
                                         actions: [
-                                          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('No')),
-                                          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Sí')),
+                                          TextButton(
+                                              onPressed: () =>
+                                                  Navigator.pop(context, false),
+                                              child: const Text('No')),
+                                          ElevatedButton(
+                                              onPressed: () =>
+                                                  Navigator.pop(context, true),
+                                              child: const Text('Sí')),
                                         ],
                                       ),
                                     );
@@ -396,7 +452,9 @@ class _ServiceItem extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(nombre, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                    Text(nombre,
+                        style: const TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.w600)),
                     const SizedBox(height: 4),
                     Wrap(
                       spacing: 8,
@@ -405,7 +463,9 @@ class _ServiceItem extends StatelessWidget {
                         _ChipIcon(text: duracion, icon: Icons.timer_outlined),
                         _ChipIcon(
                           text: activo ? 'Activo' : 'Inactivo',
-                          icon: activo ? Icons.check_circle : Icons.pause_circle_filled,
+                          icon: activo
+                              ? Icons.check_circle
+                              : Icons.pause_circle_filled,
                           color: activo ? Colors.green : Colors.orange,
                         ),
                       ],
@@ -416,18 +476,23 @@ class _ServiceItem extends StatelessWidget {
 
               final price = Padding(
                 padding: const EdgeInsets.only(right: 12, left: 12),
-                child: Text(precio, style: _priceStyle, overflow: TextOverflow.ellipsis),
+                child: Text(precio,
+                    style: _priceStyle, overflow: TextOverflow.ellipsis),
               );
 
               final actions = Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Switch.adaptive(value: activo, onChanged: onToggleActivo),
-                  IconButton(tooltip: 'Editar', onPressed: onEdit, icon: const Icon(Icons.edit)),
+                  IconButton(
+                      tooltip: 'Editar',
+                      onPressed: onEdit,
+                      icon: const Icon(Icons.edit)),
                   IconButton(
                     tooltip: 'Eliminar',
                     onPressed: onDelete,
-                    icon: const Icon(Icons.delete_forever, color: Colors.redAccent),
+                    icon: const Icon(Icons.delete_forever,
+                        color: Colors.redAccent),
                   ),
                 ],
               );
@@ -464,9 +529,9 @@ class _ChipIcon extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: c.withValues(alpha: .08),
+        color: c.withOpacity(.08),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: c.withValues(alpha: .15)),
+        border: Border.all(color: c.withOpacity(.15)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -479,14 +544,3 @@ class _ChipIcon extends StatelessWidget {
     );
   }
 }
-
-
-
-
-
-
-
-
-
-
-
