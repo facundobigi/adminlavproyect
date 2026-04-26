@@ -14,7 +14,7 @@ Future<void> main() async {
 }
 
 class _BootstrapApp extends StatelessWidget {
-  const _BootstrapApp({super.key});
+  const _BootstrapApp();
 
   @override
   Widget build(BuildContext context) {
@@ -43,7 +43,7 @@ class _BootstrapApp extends StatelessWidget {
 }
 
 class _SplashScreen extends StatelessWidget {
-  const _SplashScreen({super.key});
+  const _SplashScreen();
   @override
   Widget build(BuildContext context) {
     return const Scaffold(
@@ -59,7 +59,7 @@ class _SplashScreen extends StatelessWidget {
 }
 
 class _InitErrorScreen extends StatelessWidget {
-  const _InitErrorScreen({super.key});
+  const _InitErrorScreen();
   @override
   Widget build(BuildContext context) {
     return Scaffold(

@@ -325,7 +325,7 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
                   // Medio de pago
                   Expanded(
                     child: DropdownButtonFormField<String>(
-                      value: _pago,
+                      initialValue: _pago,
                       items: const [
                         DropdownMenuItem(value: 'todos', child: Text('Todos los pagos')),
                         DropdownMenuItem(value: 'efectivo', child: Text('Solo efectivo')),
@@ -340,7 +340,7 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
                   // Servicio
                   Expanded(
                     child: DropdownButtonFormField<String>(
-                      value: _servicio,
+                      initialValue: _servicio,
                       items: servicios
                           .map((e) =>
                               DropdownMenuItem(value: e, child: Text(e == 'todos' ? 'Todos los servicios' : e)))
@@ -733,7 +733,7 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
               const SizedBox(height: 8),
 
               DropdownButtonFormField<String>(
-                value: _tipoPago,
+                initialValue: _tipoPago,
                 items: const [
                   DropdownMenuItem(value: 'efectivo', child: Text('Efectivo')),
                   DropdownMenuItem(value: 'transferencia', child: Text('Transferencia')),
@@ -752,7 +752,7 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
               const SizedBox(height: 8),
 
               DropdownButtonFormField<String>(
-                value: _srvSelId?.isEmpty == true ? null : _srvSelId,
+                initialValue: _srvSelId?.isEmpty == true ? null : _srvSelId,
                 items: servicios.docs
                     .where((e) => (e.data()['activo'] as bool?) ?? true)
                     .map((e) => DropdownMenuItem(

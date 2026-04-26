@@ -6,7 +6,7 @@ import 'package:flutter/services.dart';
 
 class CheckInScreen extends StatefulWidget {
   final String tenantId; // UID del dueño
-  final String role;     // 'admin' | 'operator'
+  final String role; // 'admin' | 'operator'
   const CheckInScreen({super.key, required this.tenantId, required this.role});
 
   @override
@@ -53,8 +53,10 @@ class _CheckInScreenState extends State<CheckInScreen> {
     return '$first$rest';
   }
 
-  String _titleCase(String s) =>
-      _cleanSpaces(s).split(' ').map((p) => p.split('-').map(_capitalizeWord).join('-')).join(' ');
+  String _titleCase(String s) => _cleanSpaces(s)
+      .split(' ')
+      .map((p) => p.split('-').map(_capitalizeWord).join('-'))
+      .join(' ');
 
   String _fmtDur(int mins) {
     final h = mins ~/ 60, m = mins % 60;
@@ -64,12 +66,13 @@ class _CheckInScreenState extends State<CheckInScreen> {
   }
 
   // Normalización patente
-  String _normPatente(String s) => s.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
+  String _normPatente(String s) =>
+      s.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
 
   // Patrones AR
   final _reMercosur = RegExp(r'^[A-Z]{2}\d{3}[A-Z]{2}$'); // AA999AA Mercosur
-  final _reViejaAuto = RegExp(r'^[A-Z]{3}\d{3}$');        // AAA999 autos viejos
-  final _reViejaMoto = RegExp(r'^\d{3}[A-Z]{3}$');        // 999AAA motos viejas
+  final _reViejaAuto = RegExp(r'^[A-Z]{3}\d{3}$'); // AAA999 autos viejos
+  final _reViejaMoto = RegExp(r'^\d{3}[A-Z]{3}$'); // 999AAA motos viejas
   bool _validPatenteAR(String p) {
     final n = _normPatente(p);
     if (n.length < 6 || n.length > 7) return false;
@@ -79,11 +82,12 @@ class _CheckInScreenState extends State<CheckInScreen> {
   }
 
   // Filtros
-  static final _nombreAllow =
-      FilteringTextInputFormatter.allow(RegExp(r"[ A-Za-zÁÉÍÓÚÜÑáéíóúüñ'\-]", caseSensitive: false));
-  static final _vehiculoAllow =
-      FilteringTextInputFormatter.allow(RegExp(r"[ A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9\.\,\/\-]", caseSensitive: false));
-  static final _patenteAllow = FilteringTextInputFormatter.allow(RegExp(r"[A-Za-z0-9 \-]"));
+  static final _nombreAllow = FilteringTextInputFormatter.allow(
+      RegExp(r"[ A-Za-zÁÉÍÓÚÜÑáéíóúüñ'\-]", caseSensitive: false));
+  static final _vehiculoAllow = FilteringTextInputFormatter.allow(
+      RegExp(r"[ A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9\.\,\/\-]", caseSensitive: false));
+  static final _patenteAllow =
+      FilteringTextInputFormatter.allow(RegExp(r"[A-Za-z0-9 \-]"));
 
   // ===== Clientes =====
   Future<DocumentReference<Map<String, dynamic>>> _upsertCliente({
@@ -95,8 +99,10 @@ class _CheckInScreenState extends State<CheckInScreen> {
   }) async {
     final telNorm = _digits(telefono);
     final ref = FirebaseFirestore.instance
-        .collection('users').doc(widget.tenantId)
-        .collection('clientes').doc(telNorm);
+        .collection('users')
+        .doc(widget.tenantId)
+        .collection('clientes')
+        .doc(telNorm);
 
     final now = DateTime.now();
     final nombreCompleto = _cleanSpaces('$nombre $apellido');
@@ -121,7 +127,8 @@ class _CheckInScreenState extends State<CheckInScreen> {
         'patentes': FieldValue.arrayUnion([_normPatente(patente)]),
         'last_patente': _normPatente(patente),
       },
-      if (vehiculo != null && vehiculo.trim().isNotEmpty) 'last_vehiculo': _titleCase(vehiculo.trim()),
+      if (vehiculo != null && vehiculo.trim().isNotEmpty)
+        'last_vehiculo': _titleCase(vehiculo.trim()),
       'visitas': FieldValue.increment(1),
     };
 
@@ -132,10 +139,16 @@ class _CheckInScreenState extends State<CheckInScreen> {
         ...base,
         'created_at': FieldValue.serverTimestamp(),
         'visitas': 1,
-        'vehiculos': vehiculo?.trim().isNotEmpty == true ? [_titleCase(vehiculo!.trim())] : <String>[],
-        'patentes': patente?.trim().isNotEmpty == true ? [_normPatente(patente!)] : <String>[],
-        if (patente?.trim().isNotEmpty == true) 'last_patente': _normPatente(patente!),
-        if (vehiculo?.trim().isNotEmpty == true) 'last_vehiculo': _titleCase(vehiculo!.trim()),
+        'vehiculos': vehiculo?.trim().isNotEmpty == true
+            ? [_titleCase(vehiculo!.trim())]
+            : <String>[],
+        'patentes': patente?.trim().isNotEmpty == true
+            ? [_normPatente(patente!)]
+            : <String>[],
+        if (patente?.trim().isNotEmpty == true)
+          'last_patente': _normPatente(patente!),
+        if (vehiculo?.trim().isNotEmpty == true)
+          'last_vehiculo': _titleCase(vehiculo!.trim()),
       });
     }
     return ref;
@@ -146,8 +159,10 @@ class _CheckInScreenState extends State<CheckInScreen> {
     if (telNorm.length < 8) return;
 
     final ref = FirebaseFirestore.instance
-        .collection('users').doc(widget.tenantId)
-        .collection('clientes').doc(telNorm);
+        .collection('users')
+        .doc(widget.tenantId)
+        .collection('clientes')
+        .doc(telNorm);
     final snap = await ref.get();
     if (!mounted) return;
 
@@ -182,7 +197,8 @@ class _CheckInScreenState extends State<CheckInScreen> {
     _patentesPrevias.value = ps;
 
     if (_vehiculo.text.isEmpty && vs.isNotEmpty) _vehiculo.text = vs.last;
-    if (_patente.text.isEmpty && (c['last_patente'] is String)) _patente.text = (c['last_patente'] as String);
+    if (_patente.text.isEmpty && (c['last_patente'] is String))
+      _patente.text = (c['last_patente'] as String);
 
     _existeCliente.value = true;
   }
@@ -200,7 +216,8 @@ class _CheckInScreenState extends State<CheckInScreen> {
   Future<void> _guardar() async {
     if (!_formKey.currentState!.validate()) return;
     if (_servicioSelId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Seleccioná un servicio')));
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Seleccioná un servicio')));
       return;
     }
     setState(() => _saving = true);
@@ -222,7 +239,9 @@ class _CheckInScreenState extends State<CheckInScreen> {
       );
 
       final ordenesCol = FirebaseFirestore.instance
-          .collection('users').doc(widget.tenantId).collection('ordenes');
+          .collection('users')
+          .doc(widget.tenantId)
+          .collection('ordenes');
 
       await ordenesCol.add({
         'clienteRef': cliRef,
@@ -256,7 +275,8 @@ class _CheckInScreenState extends State<CheckInScreen> {
       if (mounted) Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Error: $e')));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -278,7 +298,8 @@ class _CheckInScreenState extends State<CheckInScreen> {
   @override
   Widget build(BuildContext context) {
     final serviciosQ = FirebaseFirestore.instance
-        .collection('users').doc(widget.tenantId)
+        .collection('users')
+        .doc(widget.tenantId)
         .collection('servicios')
         .orderBy('nombre')
         .snapshots();
@@ -291,7 +312,8 @@ class _CheckInScreenState extends State<CheckInScreen> {
         elevation: 0,
         backgroundColor: Colors.white,
         iconTheme: const IconThemeData(color: kPrimary),
-        titleTextStyle: const TextStyle(color: kPrimary, fontSize: 20, fontWeight: FontWeight.w600),
+        titleTextStyle: const TextStyle(
+            color: kPrimary, fontSize: 20, fontWeight: FontWeight.w600),
         title: const Text('Check-in de cliente'),
         centerTitle: true,
       ),
@@ -310,12 +332,18 @@ class _CheckInScreenState extends State<CheckInScreen> {
                   Container(
                     height: 48,
                     padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(color: kPrimary, borderRadius: BorderRadius.circular(_radius)),
+                    decoration: BoxDecoration(
+                        color: kPrimary,
+                        borderRadius: BorderRadius.circular(_radius)),
                     child: const Row(
                       children: [
                         Icon(Icons.person_add_alt_1, color: Colors.white),
                         SizedBox(width: 8),
-                        Text('Check-in', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+                        Text('Check-in',
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600)),
                       ],
                     ),
                   ),
@@ -327,7 +355,12 @@ class _CheckInScreenState extends State<CheckInScreen> {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(_radius),
-                      boxShadow: const [BoxShadow(color: Color(0x11000000), blurRadius: 10, offset: Offset(0, 3))],
+                      boxShadow: const [
+                        BoxShadow(
+                            color: Color(0x11000000),
+                            blurRadius: 10,
+                            offset: Offset(0, 3))
+                      ],
                     ),
                     child: Form(
                       key: _formKey,
@@ -335,7 +368,9 @@ class _CheckInScreenState extends State<CheckInScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          const Text('Identificación y datos', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                          const Text('Identificación y datos',
+                              style: TextStyle(
+                                  fontSize: 16, fontWeight: FontWeight.w600)),
                           const SizedBox(height: 12),
 
                           // TELÉFONO
@@ -351,7 +386,9 @@ class _CheckInScreenState extends State<CheckInScreen> {
                             textInputAction: TextInputAction.next,
                             smartDashesType: SmartDashesType.disabled,
                             smartQuotesType: SmartQuotesType.disabled,
-                            autofillHints: const [AutofillHints.telephoneNumber],
+                            autofillHints: const [
+                              AutofillHints.telephoneNumber
+                            ],
                             inputFormatters: [
                               FilteringTextInputFormatter.digitsOnly,
                               LengthLimitingTextInputFormatter(13),
@@ -359,7 +396,8 @@ class _CheckInScreenState extends State<CheckInScreen> {
                             onChanged: _buscarClientePorTelefono,
                             validator: (v) {
                               final t = _digits(v ?? '');
-                              if (t.length < 8 || t.length > 13) return 'Teléfono inválido';
+                              if (t.length < 8 || t.length > 13)
+                                return 'Teléfono inválido';
                               return null;
                             },
                           ),
@@ -371,9 +409,12 @@ class _CheckInScreenState extends State<CheckInScreen> {
                                   ? const Padding(
                                       key: ValueKey('ok'),
                                       padding: EdgeInsets.only(top: 6),
-                                      child: Text('Cliente encontrado ✓', style: TextStyle(color: Colors.green)),
+                                      child: Text('Cliente encontrado ✓',
+                                          style:
+                                              TextStyle(color: Colors.green)),
                                     )
-                                  : const SizedBox.shrink(key: ValueKey('empty')),
+                                  : const SizedBox.shrink(
+                                      key: ValueKey('empty')),
                             ),
                           ),
 
@@ -389,17 +430,23 @@ class _CheckInScreenState extends State<CheckInScreen> {
                                     labelText: 'Nombre',
                                     counterText: '',
                                     border: OutlineInputBorder(),
-                                    helperText: ' ',         // ✅ reserva espacio
+                                    helperText: ' ', // ✅ reserva espacio
                                     errorMaxLines: 1,
                                   ),
                                   textCapitalization: TextCapitalization.words,
                                   textInputAction: TextInputAction.next,
                                   keyboardType: TextInputType.name,
-                                  autofillHints: const [AutofillHints.givenName],
-                                  inputFormatters: [_nombreAllow, LengthLimitingTextInputFormatter(40)],
+                                  autofillHints: const [
+                                    AutofillHints.givenName
+                                  ],
+                                  inputFormatters: [
+                                    _nombreAllow,
+                                    LengthLimitingTextInputFormatter(40)
+                                  ],
                                   validator: (v) {
                                     final s = _cleanSpaces(v ?? '');
-                                    if (s.length < 2) return 'Ingresá el nombre';
+                                    if (s.length < 2)
+                                      return 'Ingresá el nombre';
                                     return null;
                                   },
                                   onEditingComplete: () {
@@ -416,17 +463,23 @@ class _CheckInScreenState extends State<CheckInScreen> {
                                     labelText: 'Apellido',
                                     counterText: '',
                                     border: OutlineInputBorder(),
-                                    helperText: ' ',         // ✅ reserva espacio
+                                    helperText: ' ', // ✅ reserva espacio
                                     errorMaxLines: 1,
                                   ),
                                   textCapitalization: TextCapitalization.words,
                                   textInputAction: TextInputAction.next,
                                   keyboardType: TextInputType.name,
-                                  autofillHints: const [AutofillHints.familyName],
-                                  inputFormatters: [_nombreAllow, LengthLimitingTextInputFormatter(40)],
+                                  autofillHints: const [
+                                    AutofillHints.familyName
+                                  ],
+                                  inputFormatters: [
+                                    _nombreAllow,
+                                    LengthLimitingTextInputFormatter(40)
+                                  ],
                                   validator: (v) {
                                     final s = _cleanSpaces(v ?? '');
-                                    if (s.length < 2) return 'Ingresá el apellido';
+                                    if (s.length < 2)
+                                      return 'Ingresá el apellido';
                                     return null;
                                   },
                                   onEditingComplete: () {
@@ -439,7 +492,9 @@ class _CheckInScreenState extends State<CheckInScreen> {
                           ),
 
                           const SizedBox(height: 20),
-                          const Text('Vehículo y servicio', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                          const Text('Vehículo y servicio',
+                              style: TextStyle(
+                                  fontSize: 16, fontWeight: FontWeight.w600)),
                           const SizedBox(height: 12),
 
                           // VEHÍCULO
@@ -449,12 +504,19 @@ class _CheckInScreenState extends State<CheckInScreen> {
                               labelText: 'Vehículo (ej: Ford Focus gris)',
                               counterText: '',
                               border: OutlineInputBorder(),
-                              helperText: ' ', // mantiene altura pareja si hay error
+                              helperText:
+                                  ' ', // mantiene altura pareja si hay error
                             ),
                             textCapitalization: TextCapitalization.words,
                             textInputAction: TextInputAction.next,
-                            inputFormatters: [_vehiculoAllow, LengthLimitingTextInputFormatter(60)],
-                            validator: (v) => (v == null || _cleanSpaces(v).isEmpty) ? 'Ingresá el vehículo' : null,
+                            inputFormatters: [
+                              _vehiculoAllow,
+                              LengthLimitingTextInputFormatter(60)
+                            ],
+                            validator: (v) =>
+                                (v == null || _cleanSpaces(v).isEmpty)
+                                    ? 'Ingresá el vehículo'
+                                    : null,
                             onEditingComplete: () {
                               _vehiculo.text = _titleCase(_vehiculo.text);
                               FocusScope.of(context).nextFocus();
@@ -474,7 +536,8 @@ class _CheckInScreenState extends State<CheckInScreen> {
                                 children: safe.map((v) {
                                   return ActionChip(
                                     label: Text(v),
-                                    onPressed: () => setState(() => _vehiculo.text = v),
+                                    onPressed: () =>
+                                        setState(() => _vehiculo.text = v),
                                   );
                                 }).toList(),
                               );
@@ -494,18 +557,23 @@ class _CheckInScreenState extends State<CheckInScreen> {
                               helperText: ' ',
                             ),
                             textCapitalization: TextCapitalization.characters,
-                            inputFormatters: [_patenteAllow, LengthLimitingTextInputFormatter(8)],
+                            inputFormatters: [
+                              _patenteAllow,
+                              LengthLimitingTextInputFormatter(8)
+                            ],
                             onChanged: (s) {
                               final up = s.toUpperCase();
                               if (s != up) {
                                 final sel = _patente.selection;
-                                _patente.value = TextEditingValue(text: up, selection: sel);
+                                _patente.value =
+                                    TextEditingValue(text: up, selection: sel);
                               }
                             },
                             validator: (v) {
                               final s = (v ?? '').trim();
                               if (s.isEmpty) return 'Ingresa la patente';
-                              if (!_validPatenteAR(s)) return 'Formato invalido (AB123CD, ABC123 o 123ABC)';
+                              if (!_validPatenteAR(s))
+                                return 'Formato invalido (AB123CD, ABC123 o 123ABC)';
                               return null;
                             },
                           ),
@@ -523,7 +591,8 @@ class _CheckInScreenState extends State<CheckInScreen> {
                                 children: safe.map((p) {
                                   return ActionChip(
                                     label: Text(p),
-                                    onPressed: () => setState(() => _patente.text = p),
+                                    onPressed: () =>
+                                        setState(() => _patente.text = p),
                                   );
                                 }).toList(),
                               );
@@ -537,38 +606,50 @@ class _CheckInScreenState extends State<CheckInScreen> {
                             stream: serviciosQ,
                             builder: (_, s) {
                               if (s.hasError) {
-                                return Text('Error: ${s.error}', style: const TextStyle(color: Colors.red));
+                                return Text('Error: ${s.error}',
+                                    style: const TextStyle(color: Colors.red));
                               }
                               if (!s.hasData) {
-                                return const SizedBox(height: 48, child: Center(child: CircularProgressIndicator()));
+                                return const SizedBox(
+                                    height: 48,
+                                    child: Center(
+                                        child: CircularProgressIndicator()));
                               }
                               final allDocs = s.data!.docs;
-                              final docs = allDocs.where((d) => (d.data()['activo'] as bool?) ?? true).toList();
+                              final docs = allDocs
+                                  .where((d) =>
+                                      (d.data()['activo'] as bool?) ?? true)
+                                  .toList();
 
                               if (docs.isEmpty) {
-                                return const Text('No hay servicios activos. Cargalos en "Gestionar servicios".');
+                                return const Text(
+                                    'No hay servicios activos. Cargalos en "Gestionar servicios".');
                               }
 
                               if (_servicioSelId == null) {
                                 final x = docs.first.data();
-                                WidgetsBinding.instance.addPostFrameCallback((_) {
+                                WidgetsBinding.instance
+                                    .addPostFrameCallback((_) {
                                   if (!mounted) return;
                                   setState(() {
                                     _servicioSelId = docs.first.id;
                                     _servicioSelNombre = x['nombre'] as String;
-                                    _durSelMin = (x['duracion_min'] as num).toInt();
-                                    _precioSel = (x['precio'] as num).toDouble();
+                                    _durSelMin =
+                                        (x['duracion_min'] as num).toInt();
+                                    _precioSel =
+                                        (x['precio'] as num).toDouble();
                                   });
                                   _calcularETA();
                                 });
                               }
 
                               return DropdownButtonFormField<String>(
-                                value: _servicioSelId,
+                                initialValue: _servicioSelId,
                                 items: docs
                                     .map((d) => DropdownMenuItem(
                                           value: d.id,
-                                          child: Text((d.data()['nombre'] ?? '') as String),
+                                          child: Text((d.data()['nombre'] ?? '')
+                                              as String),
                                         ))
                                     .toList(),
                                 onChanged: (id) {
@@ -577,13 +658,18 @@ class _CheckInScreenState extends State<CheckInScreen> {
                                   setState(() {
                                     _servicioSelId = d.id;
                                     _servicioSelNombre = x['nombre'] as String;
-                                    _durSelMin = (x['duracion_min'] as num).toInt();
-                                    _precioSel = (x['precio'] as num).toDouble();
+                                    _durSelMin =
+                                        (x['duracion_min'] as num).toInt();
+                                    _precioSel =
+                                        (x['precio'] as num).toDouble();
                                   });
                                   _calcularETA();
                                 },
-                                decoration: const InputDecoration(labelText: 'Servicio', border: OutlineInputBorder()),
-                                validator: (v) => v == null ? 'Seleccioná un servicio' : null,
+                                decoration: const InputDecoration(
+                                    labelText: 'Servicio',
+                                    border: OutlineInputBorder()),
+                                validator: (v) =>
+                                    v == null ? 'Seleccioná un servicio' : null,
                               );
                             },
                           ),
@@ -595,7 +681,8 @@ class _CheckInScreenState extends State<CheckInScreen> {
                               const SizedBox(width: 6),
                               Text('TE: ${_fmtDur(_durSelMin)}'),
                               const Spacer(),
-                              Text('Precio: \$${_precioSel.toStringAsFixed(0)}'),
+                              Text(
+                                  'Precio: \$${_precioSel.toStringAsFixed(0)}'),
                             ],
                           ),
 
@@ -606,15 +693,19 @@ class _CheckInScreenState extends State<CheckInScreen> {
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: kPrimary,
                                 foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10)),
+                                textStyle: const TextStyle(
+                                    fontSize: 16, fontWeight: FontWeight.w600),
                                 elevation: 0,
                               ),
                               onPressed: _saving ? null : _guardar,
                               child: _saving
                                   ? const SizedBox(
-                                      width: 24, height: 24,
-                                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                      width: 24,
+                                      height: 24,
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2, color: Colors.white),
                                     )
                                   : const Text('Crear orden'),
                             ),
@@ -632,12 +723,3 @@ class _CheckInScreenState extends State<CheckInScreen> {
     );
   }
 }
-
-
-
-
-
-
-
-
-

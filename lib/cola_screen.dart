@@ -142,7 +142,7 @@ class _ColaScreenState extends State<ColaScreen> {
         title: const Text('Cobro y entrega'),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
           DropdownButtonFormField<String>(
-            value: tipo,
+            initialValue: tipo,
             items: const [
               DropdownMenuItem(value: 'efectivo', child: Text('Efectivo')),
               DropdownMenuItem(value: 'transferencia', child: Text('Transferencia')),

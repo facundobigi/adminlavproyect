@@ -103,8 +103,9 @@ class _BalanceScreenState extends State<BalanceScreen> {
       if (pago is Map) {
         final monto = (pago['monto'] as num?)?.toDouble() ?? 0.0;
         final tipo = (pago['tipo'] ?? '') as String? ?? '';
-        if (tipo == 'efectivo') efectivo += monto;
-        else if (tipo == 'transferencia') transferencia += monto;
+        if (tipo == 'efectivo') {
+          efectivo += monto;
+        } else if (tipo == 'transferencia') transferencia += monto;
         else if (tipo == 'otro') otro += monto;
         else efectivo += monto; // fallback histórico
       } else {
@@ -121,7 +122,7 @@ class _BalanceScreenState extends State<BalanceScreen> {
     double gastoTotal = 0;
     double gastoNoTransfer = 0;
     for (final d in gastos.docs) {
-      final data = d.data() as Map<String, dynamic>;
+      final data = d.data();
       final monto = (data['monto'] as num?)?.toDouble() ?? 0.0;
       final metodo = (data['metodo_pago'] as String?)?.toLowerCase();
       gastoTotal += monto;

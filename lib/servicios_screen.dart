@@ -1,5 +1,4 @@
 // servicios_screen.dart
-import 'dart:ui' show FontFeature;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -91,7 +90,8 @@ class _ServiciosScreenState extends State<ServiciosScreen> {
     } else {
       await doc.reference.update(payload);
     }
-    if (context.mounted) Navigator.of(context, rootNavigator: true).pop(true);
+    if (!mounted) return;
+    Navigator.of(context, rootNavigator: true).pop(true);
   }
 
   final res = await showDialog<bool>(
@@ -464,9 +464,9 @@ class _ChipIcon extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: c.withOpacity(.08),
+        color: c.withValues(alpha: .08),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: c.withOpacity(.15)),
+        border: Border.all(color: c.withValues(alpha: .15)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

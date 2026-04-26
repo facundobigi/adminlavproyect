@@ -35,6 +35,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _signin() async {
     if (!_form.currentState!.validate()) return;
+    FocusScope.of(context).unfocus();
     setState(() => _busy = true);
     try {
       if (kIsWeb) {
@@ -71,8 +72,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final textScaler =
-        MediaQuery.textScalerOf(context).clamp(minScaleFactor: 0.9, maxScaleFactor: 1.2);
+    final textScaler = MediaQuery.textScalerOf(context)
+        .clamp(minScaleFactor: 0.9, maxScaleFactor: 1.2);
 
     return MediaQuery(
       data: MediaQuery.of(context).copyWith(textScaler: textScaler),
@@ -83,7 +84,9 @@ class _LoginScreenState extends State<LoginScreen> {
           backgroundColor: Colors.white,
           iconTheme: const IconThemeData(color: kPrimary),
           titleTextStyle: const TextStyle(
-            color: kPrimary, fontSize: 20, fontWeight: FontWeight.w600,
+            color: kPrimary,
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
           ),
           title: const Text('Ingresar'),
           centerTitle: true,
@@ -124,13 +127,18 @@ class _LoginScreenState extends State<LoginScreen> {
                               border: OutlineInputBorder(),
                             ),
                             keyboardType: TextInputType.emailAddress,
+                            textInputAction: TextInputAction.next,
+                            autocorrect: false,
+                            enableSuggestions: false,
                             autofillHints: const [
                               AutofillHints.username,
                               AutofillHints.email
                             ],
-                            onFieldSubmitted: (_) => _signin(),
-                            validator: (v) =>
-                                (v != null && v.contains('@')) ? null : 'Email inválido',
+                            onFieldSubmitted: (_) =>
+                                FocusScope.of(context).nextFocus(),
+                            validator: (v) => (v != null && v.contains('@'))
+                                ? null
+                                : 'Email inválido',
                           ),
                           const SizedBox(height: 12),
                           TextFormField(
@@ -139,18 +147,23 @@ class _LoginScreenState extends State<LoginScreen> {
                               labelText: 'Contraseña',
                               border: const OutlineInputBorder(),
                               suffixIcon: IconButton(
-                                icon: Icon(
-                                    _obscure ? Icons.visibility : Icons.visibility_off),
+                                icon: Icon(_obscure
+                                    ? Icons.visibility
+                                    : Icons.visibility_off),
                                 onPressed: () =>
                                     setState(() => _obscure = !_obscure),
                                 tooltip: _obscure ? 'Mostrar' : 'Ocultar',
                               ),
                             ),
                             obscureText: _obscure,
+                            textInputAction: TextInputAction.done,
+                            autocorrect: false,
+                            enableSuggestions: false,
                             autofillHints: const [AutofillHints.password],
                             onFieldSubmitted: (_) => _signin(),
-                            validator: (v) =>
-                                (v != null && v.length >= 6) ? null : 'Mínimo 6 caracteres',
+                            validator: (v) => (v != null && v.length >= 6)
+                                ? null
+                                : 'Mínimo 6 caracteres',
                           ),
                           const SizedBox(height: 8),
                           Row(
@@ -164,11 +177,15 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                               const Text('Recordarme'),
                               const Spacer(),
-                              TextButton(
-                                onPressed: _busy
-                                    ? null
-                                    : () => _show('Pedile al admin el reseteo'),
-                                child: const Text('¿Olvidaste tu contraseña?'),
+                              Flexible(
+                                child: TextButton(
+                                  onPressed: _busy
+                                      ? null
+                                      : () =>
+                                          _show('Pedile al admin el reseteo'),
+                                  child:
+                                      const Text('¿Olvidaste tu contraseña?'),
+                                ),
                               ),
                             ],
                           ),
@@ -184,14 +201,15 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                                 elevation: 0,
                                 textStyle: const TextStyle(
-                                  fontSize: 16, fontWeight: FontWeight.w600),
+                                    fontSize: 16, fontWeight: FontWeight.w600),
                               ),
                               onPressed: _busy ? null : _signin,
                               child: _busy
                                   ? const SizedBox(
-                                      width: 24, height: 24,
+                                      width: 24,
+                                      height: 24,
                                       child: CircularProgressIndicator(
-                                        strokeWidth: 2, color: Colors.white),
+                                          strokeWidth: 2, color: Colors.white),
                                     )
                                   : const Text('Entrar'),
                             ),
@@ -209,6 +227,8 @@ class _LoginScreenState extends State<LoginScreen> {
                 return Padding(
                   padding: EdgeInsets.fromLTRB(padH, 20, padH, 16),
                   child: SingleChildScrollView(
+                    keyboardDismissBehavior:
+                        ScrollViewKeyboardDismissBehavior.onDrag,
                     padding: EdgeInsets.only(bottom: bottomInset + 24),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -311,8 +331,3 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 }
-
-
-
-
-

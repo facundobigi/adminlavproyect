@@ -29,7 +29,16 @@
   <meta name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
 <style>
-  html, body, flt-glass-pane { touch-action: pan-x pan-y pinch-zoom; }
+  html, body {
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  flt-glass-pane {
+    touch-action: none;
+  }
 </style>
 
 
