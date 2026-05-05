@@ -1,0 +1,77 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function profilePath() {
+      return /databases/$(database)/documents/admins/$(request.auth.uid);
+    }
+
+    function hasProfile() {
+      return signedIn()
+        && exists(profilePath())
+        && get(profilePath()).data.active == true;
+    }
+
+    function profile() {
+      return get(profilePath()).data;
+    }
+
+    function tenantForUser() {
+      return profile().tenant == null ? request.auth.uid : profile().tenant;
+    }
+
+    function inTenant(tenantId) {
+      return hasProfile() && tenantForUser() == tenantId;
+    }
+
+    function isAdmin(tenantId) {
+      return inTenant(tenantId) && profile().role == 'admin';
+    }
+
+    match /admins/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    match /users/{tenantId} {
+      allow read: if inTenant(tenantId);
+      allow write: if false;
+
+      match /config/{docId} {
+        allow read: if inTenant(tenantId);
+        allow write: if isAdmin(tenantId);
+      }
+
+      match /servicios/{docId} {
+        allow read: if inTenant(tenantId);
+        allow write: if isAdmin(tenantId);
+      }
+
+      match /clientes/{docId} {
+        allow read, write: if inTenant(tenantId);
+      }
+
+      match /ordenes/{docId} {
+        allow read, create, update: if inTenant(tenantId);
+        allow delete: if false;
+      }
+
+      match /gastos/{docId} {
+        allow read, create: if inTenant(tenantId);
+        allow update, delete: if isAdmin(tenantId);
+      }
+
+      match /{document=**} {
+        allow read, write: if false;
+      }
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

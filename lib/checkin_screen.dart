@@ -4,6 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'patente_utils.dart';
+
 class CheckInScreen extends StatefulWidget {
   final String tenantId; // UID del dueño
   final String role; // 'admin' | 'operator'
@@ -66,20 +68,9 @@ class _CheckInScreenState extends State<CheckInScreen> {
   }
 
   // Normalización patente
-  String _normPatente(String s) =>
-      s.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
+  String _normPatente(String s) => normalizarPatente(s);
 
-  // Patrones AR
-  final _reMercosur = RegExp(r'^[A-Z]{2}\d{3}[A-Z]{2}$'); // AA999AA Mercosur
-  final _reViejaAuto = RegExp(r'^[A-Z]{3}\d{3}$'); // AAA999 autos viejos
-  final _reViejaMoto = RegExp(r'^\d{3}[A-Z]{3}$'); // 999AAA motos viejas
-  bool _validPatenteAR(String p) {
-    final n = _normPatente(p);
-    if (n.length < 6 || n.length > 7) return false;
-    return _reMercosur.hasMatch(n) ||
-        _reViejaAuto.hasMatch(n) ||
-        _reViejaMoto.hasMatch(n);
-  }
+  bool _validPatente(String p) => patenteValida(p);
 
   // Filtros
   static final _nombreAllow = FilteringTextInputFormatter.allow(
@@ -421,74 +412,83 @@ class _CheckInScreenState extends State<CheckInScreen> {
                           const SizedBox(height: 12),
 
                           // NOMBRE y APELLIDO (con espacio de error reservado para evitar desniveles)
-                          Row(
-                            children: [
-                              Expanded(
-                                child: TextFormField(
-                                  controller: _nombre,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Nombre',
-                                    counterText: '',
-                                    border: OutlineInputBorder(),
-                                    helperText: ' ', // ✅ reserva espacio
-                                    errorMaxLines: 1,
-                                  ),
-                                  textCapitalization: TextCapitalization.words,
-                                  textInputAction: TextInputAction.next,
-                                  keyboardType: TextInputType.name,
-                                  autofillHints: const [
-                                    AutofillHints.givenName
-                                  ],
-                                  inputFormatters: [
-                                    _nombreAllow,
-                                    LengthLimitingTextInputFormatter(40)
-                                  ],
-                                  validator: (v) {
-                                    final s = _cleanSpaces(v ?? '');
-                                    if (s.length < 2)
-                                      return 'Ingresá el nombre';
-                                    return null;
-                                  },
-                                  onEditingComplete: () {
-                                    _nombre.text = _titleCase(_nombre.text);
-                                    FocusScope.of(context).nextFocus();
-                                  },
+                          LayoutBuilder(
+                            builder: (_, c) {
+                              final nombreField = TextFormField(
+                                controller: _nombre,
+                                decoration: const InputDecoration(
+                                  labelText: 'Nombre',
+                                  counterText: '',
+                                  border: OutlineInputBorder(),
+                                  helperText: ' ', // ✅ reserva espacio
+                                  errorMaxLines: 1,
                                 ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: TextFormField(
-                                  controller: _apellido,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Apellido',
-                                    counterText: '',
-                                    border: OutlineInputBorder(),
-                                    helperText: ' ', // ✅ reserva espacio
-                                    errorMaxLines: 1,
-                                  ),
-                                  textCapitalization: TextCapitalization.words,
-                                  textInputAction: TextInputAction.next,
-                                  keyboardType: TextInputType.name,
-                                  autofillHints: const [
-                                    AutofillHints.familyName
-                                  ],
-                                  inputFormatters: [
-                                    _nombreAllow,
-                                    LengthLimitingTextInputFormatter(40)
-                                  ],
-                                  validator: (v) {
-                                    final s = _cleanSpaces(v ?? '');
-                                    if (s.length < 2)
-                                      return 'Ingresá el apellido';
-                                    return null;
-                                  },
-                                  onEditingComplete: () {
-                                    _apellido.text = _titleCase(_apellido.text);
-                                    FocusScope.of(context).nextFocus();
-                                  },
+                                textCapitalization: TextCapitalization.words,
+                                textInputAction: TextInputAction.next,
+                                keyboardType: TextInputType.name,
+                                autofillHints: const [AutofillHints.givenName],
+                                inputFormatters: [
+                                  _nombreAllow,
+                                  LengthLimitingTextInputFormatter(40)
+                                ],
+                                validator: (v) {
+                                  final s = _cleanSpaces(v ?? '');
+                                  if (s.length < 2) return 'Ingresá el nombre';
+                                  return null;
+                                },
+                                onEditingComplete: () {
+                                  _nombre.text = _titleCase(_nombre.text);
+                                  FocusScope.of(context).nextFocus();
+                                },
+                              );
+
+                              final apellidoField = TextFormField(
+                                controller: _apellido,
+                                decoration: const InputDecoration(
+                                  labelText: 'Apellido',
+                                  counterText: '',
+                                  border: OutlineInputBorder(),
+                                  helperText: ' ', // ✅ reserva espacio
+                                  errorMaxLines: 1,
                                 ),
-                              ),
-                            ],
+                                textCapitalization: TextCapitalization.words,
+                                textInputAction: TextInputAction.next,
+                                keyboardType: TextInputType.name,
+                                autofillHints: const [AutofillHints.familyName],
+                                inputFormatters: [
+                                  _nombreAllow,
+                                  LengthLimitingTextInputFormatter(40)
+                                ],
+                                validator: (v) {
+                                  final s = _cleanSpaces(v ?? '');
+                                  if (s.length < 2)
+                                    return 'Ingresá el apellido';
+                                  return null;
+                                },
+                                onEditingComplete: () {
+                                  _apellido.text = _titleCase(_apellido.text);
+                                  FocusScope.of(context).nextFocus();
+                                },
+                              );
+
+                              if (c.maxWidth < 500) {
+                                return Column(
+                                  children: [
+                                    nombreField,
+                                    const SizedBox(height: 8),
+                                    apellidoField,
+                                  ],
+                                );
+                              }
+
+                              return Row(
+                                children: [
+                                  Expanded(child: nombreField),
+                                  const SizedBox(width: 8),
+                                  Expanded(child: apellidoField),
+                                ],
+                              );
+                            },
                           ),
 
                           const SizedBox(height: 20),
@@ -528,12 +528,11 @@ class _CheckInScreenState extends State<CheckInScreen> {
                           ValueListenableBuilder<List<String>>(
                             valueListenable: _vehiculosPrevios,
                             builder: (_, list, __) {
-                              final safe = list ?? <String>[];
-                              if (safe.isEmpty) return const SizedBox.shrink();
+                              if (list.isEmpty) return const SizedBox.shrink();
                               return Wrap(
                                 spacing: 8,
                                 runSpacing: 8,
-                                children: safe.map((v) {
+                                children: list.map((v) {
                                   return ActionChip(
                                     label: Text(v),
                                     onPressed: () =>
@@ -550,8 +549,8 @@ class _CheckInScreenState extends State<CheckInScreen> {
                           TextFormField(
                             controller: _patente,
                             decoration: const InputDecoration(
-                              labelText: 'Patente',
-                              hintText: 'Ej: AB123CD, ABC123 o 123ABC',
+                              labelText: 'Patente / matricula',
+                              hintText: patenteHint,
                               counterText: '',
                               border: OutlineInputBorder(),
                               helperText: ' ',
@@ -559,7 +558,7 @@ class _CheckInScreenState extends State<CheckInScreen> {
                             textCapitalization: TextCapitalization.characters,
                             inputFormatters: [
                               _patenteAllow,
-                              LengthLimitingTextInputFormatter(8)
+                              LengthLimitingTextInputFormatter(12)
                             ],
                             onChanged: (s) {
                               final up = s.toUpperCase();
@@ -572,8 +571,7 @@ class _CheckInScreenState extends State<CheckInScreen> {
                             validator: (v) {
                               final s = (v ?? '').trim();
                               if (s.isEmpty) return 'Ingresa la patente';
-                              if (!_validPatenteAR(s))
-                                return 'Formato invalido (AB123CD, ABC123 o 123ABC)';
+                              if (!_validPatente(s)) return patenteError;
                               return null;
                             },
                           ),
@@ -583,12 +581,11 @@ class _CheckInScreenState extends State<CheckInScreen> {
                           ValueListenableBuilder<List<String>>(
                             valueListenable: _patentesPrevias,
                             builder: (_, list, __) {
-                              final safe = list ?? <String>[];
-                              if (safe.isEmpty) return const SizedBox.shrink();
+                              if (list.isEmpty) return const SizedBox.shrink();
                               return Wrap(
                                 spacing: 8,
                                 runSpacing: 8,
-                                children: safe.map((p) {
+                                children: list.map((p) {
                                   return ActionChip(
                                     label: Text(p),
                                     onPressed: () =>

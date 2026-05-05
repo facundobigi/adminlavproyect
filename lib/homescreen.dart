@@ -234,6 +234,35 @@ class _HomeScreenState extends State<HomeScreen> {
     ).then((_) => cargarResumenDelDia());
   }
 
+  DateTime _hoy() {
+    final n = DateTime.now();
+    return DateTime(n.year, n.month, n.day);
+  }
+
+  bool _isSameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
+  void _registrarGasto() {
+    final hoy = _hoy();
+    final diaActivo = isOperator ? hoy : today;
+    if (!_isSameDay(diaActivo, hoy)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Los gastos solo se pueden cargar en el dia de hoy'),
+        ),
+      );
+      return;
+    }
+
+    _go(
+      RegistroGastoScreen(
+        tenantId: widget.tenantId,
+        role: widget.role,
+        selectedDate: hoy,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // Si es operador, mostramos SIEMPRE la fecha de hoy (sin tocar state)
@@ -323,13 +352,7 @@ class _HomeScreenState extends State<HomeScreen> {
               _tileAccent(
                 Icons.receipt_long,
                 'Registrar Gasto',
-                () => _go(
-                  RegistroGastoScreen(
-                    tenantId: widget.tenantId,
-                    role: widget.role,
-                    selectedDate: DateTime(today.year, today.month, today.day),
-                  ),
-                ),
+                _registrarGasto,
               ),
               // Solo admin: botones extra
               if (!isOperator) ...[
@@ -386,13 +409,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _tileAccent(
           Icons.receipt_long,
           'Registrar Gasto',
-          () => _go(
-            RegistroGastoScreen(
-              tenantId: widget.tenantId,
-              role: widget.role,
-              selectedDate: DateTime(today.year, today.month, today.day),
-            ),
-          ),
+          _registrarGasto,
         ),
         if (!isOperator) ...[
           SizedBox(height: compact ? 8 : 12),
@@ -693,12 +710,12 @@ class _HomeScreenState extends State<HomeScreen> {
       required VoidCallback onPressed}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        children: [
-          Row(
+      child: LayoutBuilder(
+        builder: (_, c) {
+          final left = Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(l, style: const TextStyle(fontSize: 16)),
+              Flexible(child: Text(l, style: const TextStyle(fontSize: 16))),
               const SizedBox(width: 8),
               TextButton.icon(
                 onPressed: onPressed,
@@ -710,10 +727,28 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ],
-          ),
-          const Spacer(),
-          DefaultTextStyle.merge(style: _numStyle, child: r),
-        ],
+          );
+
+          if (c.maxWidth < 430) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                left,
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: DefaultTextStyle.merge(style: _numStyle, child: r),
+                ),
+              ],
+            );
+          }
+
+          return Row(
+            children: [
+              Expanded(child: left),
+              DefaultTextStyle.merge(style: _numStyle, child: r),
+            ],
+          );
+        },
       ),
     );
   }

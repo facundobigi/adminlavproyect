@@ -2,7 +2,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+
+import 'patente_utils.dart';
 
 class ResumenLavadosScreen extends StatefulWidget {
   const ResumenLavadosScreen({super.key});
@@ -19,14 +22,22 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
 
   final String _uid = FirebaseAuth.instance.currentUser!.uid;
   late final CollectionReference<Map<String, dynamic>> _ordenesCol =
-      FirebaseFirestore.instance.collection('users').doc(_uid).collection('ordenes');
+      FirebaseFirestore.instance
+          .collection('users')
+          .doc(_uid)
+          .collection('ordenes');
   late final CollectionReference<Map<String, dynamic>> _serviciosCol =
-      FirebaseFirestore.instance.collection('users').doc(_uid).collection('servicios');
+      FirebaseFirestore.instance
+          .collection('users')
+          .doc(_uid)
+          .collection('servicios');
 
   // Filtros
   DateTimeRange _range = DateTimeRange(
-    start: DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day),
-    end: DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day).add(const Duration(days: 1)),
+    start:
+        DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day),
+    end: DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day)
+        .add(const Duration(days: 1)),
   );
   String _pago = 'todos'; // todos | efectivo | transferencia | otro
   String _servicio = 'todos'; // nombre de servicio o 'todos'
@@ -77,7 +88,8 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
       _aplicarBusqueda();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Error: $e')));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -119,7 +131,9 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
       final x = d.data();
       final pago = (x['pago'] ?? {}) as Map<String, dynamic>;
       final tipo = (pago['tipo'] ?? '') as String?;
-      final monto = (pago['monto'] as num?)?.toDouble() ?? (x['precio_snapshot'] as num?)?.toDouble() ?? 0.0;
+      final monto = (pago['monto'] as num?)?.toDouble() ??
+          (x['precio_snapshot'] as num?)?.toDouble() ??
+          0.0;
       kIngresos += monto;
       if (tipo == 'efectivo') kEfec += monto;
       if (tipo == 'transferencia') kTransf += monto;
@@ -138,8 +152,12 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
       }
     }
 
-    kEsperaProm = esperaCount == 0 ? Duration.zero : Duration(minutes: (esperaTot / esperaCount).round());
-    kLavadoProm = lavadoCount == 0 ? Duration.zero : Duration(minutes: (lavadoTot / lavadoCount).round());
+    kEsperaProm = esperaCount == 0
+        ? Duration.zero
+        : Duration(minutes: (esperaTot / esperaCount).round());
+    kLavadoProm = lavadoCount == 0
+        ? Duration.zero
+        : Duration(minutes: (lavadoTot / lavadoCount).round());
   }
 
   DateTime? _toDate(dynamic v) {
@@ -151,10 +169,8 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
   // ===== UI =====
   @override
   Widget build(BuildContext context) {
-    final fechaLabel =
-        '${DateFormat('dd/MM/yyyy').format(_range.start)} – ${DateFormat('dd/MM/yyyy').format(_range.end.subtract(const Duration(milliseconds: 1)))}';
-
-    final scaler = MediaQuery.textScalerOf(context).clamp(minScaleFactor: 0.9, maxScaleFactor: 1.2);
+    final scaler = MediaQuery.textScalerOf(context)
+        .clamp(minScaleFactor: 0.9, maxScaleFactor: 1.2);
 
     return MediaQuery(
       data: MediaQuery.of(context).copyWith(textScaler: scaler),
@@ -163,7 +179,8 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
         appBar: AppBar(
           elevation: 0,
           backgroundColor: Colors.white,
-          titleTextStyle: const TextStyle(color: kPrimary, fontSize: 20, fontWeight: FontWeight.w600),
+          titleTextStyle: const TextStyle(
+              color: kPrimary, fontSize: 20, fontWeight: FontWeight.w600),
           iconTheme: const IconThemeData(color: kPrimary),
           title: const Text('Resumen de lavados'),
           centerTitle: true,
@@ -174,64 +191,54 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
               constraints: const BoxConstraints(maxWidth: _panelMaxW),
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Barra azul
-                    Container(
-                      height: 56,
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      decoration: BoxDecoration(color: kPrimary, borderRadius: BorderRadius.circular(_radius)),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.list_alt, color: Colors.white),
-                          const SizedBox(width: 8),
-                          const Text('Entregas',
-                              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
-                          const Spacer(),
-                          InkWell(
-                            onTap: _pickRange,
-                            borderRadius: BorderRadius.circular(10),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(Icons.calendar_today, color: Colors.white, size: 18),
-                                  const SizedBox(width: 6),
-                                  Flexible(
-                                    child: Text(
-                                      fechaLabel,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
+                child: CustomScrollView(
+                  slivers: [
+                    SliverToBoxAdapter(
+                      child: Container(
+                        height: 56,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(
+                            color: kPrimary,
+                            borderRadius: BorderRadius.circular(_radius)),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.list_alt, color: Colors.white),
+                            SizedBox(width: 8),
+                            Text('Entregas',
+                                style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600)),
+                          ],
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 12),
-
-                    _filtrosCard(),
-                    const SizedBox(height: 12),
-
-                    _kpisGrid(),
-                    const SizedBox(height: 12),
-
-                    Expanded(
-                      child: _loading
-                          ? const Center(child: CircularProgressIndicator())
-                          : _items.isEmpty
-                              ? const Center(child: Text('Sin resultados'))
-                              : ListView.separated(
-                                  itemCount: _items.length,
-                                  separatorBuilder: (_, __) => const SizedBox(height: 8),
-                                  itemBuilder: (_, i) => _rowCard(_items[i]),
-                                ),
-                    ),
+                    const SliverToBoxAdapter(child: SizedBox(height: 12)),
+                    SliverToBoxAdapter(child: _filtrosCard()),
+                    const SliverToBoxAdapter(child: SizedBox(height: 12)),
+                    SliverToBoxAdapter(child: _kpisGrid()),
+                    const SliverToBoxAdapter(child: SizedBox(height: 12)),
+                    if (_loading)
+                      const SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: Center(child: CircularProgressIndicator()),
+                      )
+                    else if (_items.isEmpty)
+                      const SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: Center(child: Text('Sin resultados')),
+                      )
+                    else
+                      SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (_, i) {
+                            if (i.isOdd) return const SizedBox(height: 8);
+                            return _rowCard(_items[i ~/ 2]);
+                          },
+                          childCount: _items.length * 2 - 1,
+                        ),
+                      ),
+                    const SliverToBoxAdapter(child: SizedBox(height: 16)),
                   ],
                 ),
               ),
@@ -244,65 +251,65 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
 
   // ===== Widgets =====
   Widget _filtrosCard() {
+    final desdeStr = DateFormat('dd/MM/yyyy').format(_range.start);
+    final hastaStr = DateFormat('dd/MM/yyyy')
+        .format(_range.end.subtract(const Duration(days: 1)));
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(_radius),
-        boxShadow: const [BoxShadow(color: Color(0x11000000), blurRadius: 10, offset: Offset(0, 3))],
+        boxShadow: const [
+          BoxShadow(
+              color: Color(0x11000000), blurRadius: 10, offset: Offset(0, 3))
+        ],
       ),
       child: Column(
         children: [
-          // Rápidos
+          // Rango de fechas
           LayoutBuilder(builder: (_, c) {
-            final wrap = c.maxWidth < 520;
-            final chips = [
-              _quick('Hoy', () {
-                final s = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
-                _range = DateTimeRange(start: s, end: s.add(const Duration(days: 1)));
-                _cargar();
-              }),
-              _quick('Ayer', () {
-                final s = DateTime.now().subtract(const Duration(days: 1));
-                final d = DateTime(s.year, s.month, s.day);
-                _range = DateTimeRange(start: d, end: d.add(const Duration(days: 1)));
-                _cargar();
-              }),
-              _quick('Semana', () {
-                final now = DateTime.now();
-                final s = now.subtract(Duration(days: now.weekday - 1));
-                final start = DateTime(s.year, s.month, s.day);
-                _range = DateTimeRange(start: start, end: start.add(const Duration(days: 7)));
-                _cargar();
-              }),
-              _quick('Mes', () {
-                final n = DateTime.now();
-                final start = DateTime(n.year, n.month, 1);
-                final end = DateTime(n.year, n.month + 1, 1);
-                _range = DateTimeRange(start: start, end: end);
-                _cargar();
-              }),
-            ];
-            final right = TextButton.icon(
-              onPressed: _cargar,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Actualizar'),
-              style: TextButton.styleFrom(foregroundColor: kPrimary),
+            final narrow = c.maxWidth < 560;
+            final desde = OutlinedButton.icon(
+              onPressed: _pickDesde,
+              icon: const Icon(Icons.calendar_month, size: 18),
+              label: Text('Desde  $desdeStr', overflow: TextOverflow.ellipsis),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: kPrimary),
+                foregroundColor: kPrimary,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+              ),
+            );
+            final hasta = OutlinedButton.icon(
+              onPressed: _pickHasta,
+              icon: const Icon(Icons.calendar_month, size: 18),
+              label: Text('Hasta  $hastaStr', overflow: TextOverflow.ellipsis),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: kPrimary),
+                foregroundColor: kPrimary,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+              ),
             );
 
-            if (!wrap) {
+            if (!narrow) {
               return Row(children: [
-                ...List.generate(chips.length, (i) => Row(children: [if (i > 0) const SizedBox(width: 8), chips[i]])),
-                const Spacer(),
-                right,
+                Expanded(child: desde),
+                const SizedBox(width: 8),
+                Expanded(child: hasta),
               ]);
             }
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Wrap(spacing: 8, runSpacing: 8, children: chips),
+                desde,
                 const SizedBox(height: 8),
-                Align(alignment: Alignment.centerRight, child: right),
+                hasta,
               ],
             );
           }),
@@ -321,77 +328,84 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
               }
               return LayoutBuilder(builder: (_, c) {
                 final wide = c.maxWidth > 720;
-                final children = [
-                  // Medio de pago
-                  Expanded(
-                    child: DropdownButtonFormField<String>(
-                      initialValue: _pago,
-                      items: const [
-                        DropdownMenuItem(value: 'todos', child: Text('Todos los pagos')),
-                        DropdownMenuItem(value: 'efectivo', child: Text('Solo efectivo')),
-                        DropdownMenuItem(value: 'transferencia', child: Text('Solo transferencia')),
-                        DropdownMenuItem(value: 'otro', child: Text('Solo otro')),
-                      ],
-                      onChanged: (v) => setState(() => _pago = v ?? 'todos'),
-                      decoration: const InputDecoration(labelText: 'Medio de pago', border: OutlineInputBorder()),
-                    ),
+                final pagoField = DropdownButtonFormField<String>(
+                  initialValue: _pago,
+                  items: const [
+                    DropdownMenuItem(
+                        value: 'todos', child: Text('Todos los pagos')),
+                    DropdownMenuItem(
+                        value: 'efectivo', child: Text('Solo efectivo')),
+                    DropdownMenuItem(
+                        value: 'transferencia',
+                        child: Text('Solo transferencia')),
+                    DropdownMenuItem(value: 'otro', child: Text('Solo otro')),
+                  ],
+                  onChanged: (v) => setState(() => _pago = v ?? 'todos'),
+                  decoration: const InputDecoration(
+                      labelText: 'Medio de pago', border: OutlineInputBorder()),
+                );
+                final servicioField = DropdownButtonFormField<String>(
+                  initialValue: _servicio,
+                  items: servicios
+                      .map((e) => DropdownMenuItem(
+                          value: e,
+                          child:
+                              Text(e == 'todos' ? 'Todos los servicios' : e)))
+                      .toList(),
+                  onChanged: (v) => setState(() => _servicio = v ?? 'todos'),
+                  decoration: const InputDecoration(
+                      labelText: 'Servicio', border: OutlineInputBorder()),
+                );
+                final buscarField = TextField(
+                  controller: _buscaCtrl,
+                  onChanged: (_) => _aplicarBusqueda(),
+                  decoration: const InputDecoration(
+                    labelText:
+                        'Buscar (cliente / tel / patente / vehículo / servicio)',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.search),
                   ),
-                  const SizedBox(width: 8),
-                  // Servicio
-                  Expanded(
-                    child: DropdownButtonFormField<String>(
-                      initialValue: _servicio,
-                      items: servicios
-                          .map((e) =>
-                              DropdownMenuItem(value: e, child: Text(e == 'todos' ? 'Todos los servicios' : e)))
-                          .toList(),
-                      onChanged: (v) => setState(() => _servicio = v ?? 'todos'),
-                      decoration: const InputDecoration(labelText: 'Servicio', border: OutlineInputBorder()),
+                );
+                final aplicarButton = SizedBox(
+                  width: wide ? 140 : double.infinity,
+                  height: 48,
+                  child: ElevatedButton(
+                    onPressed: () => _cargar(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: kPrimary,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
                     ),
+                    child: const Text('Aplicar'),
                   ),
-                  const SizedBox(width: 8),
-                  // Buscar
-                  Expanded(
-                    child: TextField(
-                      controller: _buscaCtrl,
-                      onChanged: (_) => _aplicarBusqueda(),
-                      decoration: const InputDecoration(
-                        labelText: 'Buscar (cliente / tel / patente / vehículo / servicio)',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.search),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  SizedBox(
-                    width: wide ? 140 : 120,
-                    height: 48,
-                    child: ElevatedButton(
-                      onPressed: () => _cargar(),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: kPrimary,
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
-                      child: const Text('Aplicar'),
-                    ),
-                  ),
-                ];
+                );
 
-                return wide
-                    ? Row(children: children)
-                    : Column(
-                        children: [
-                          children[0],
-                          const SizedBox(height: 8),
-                          children[2],
-                          const SizedBox(height: 8),
-                          children[4],
-                          const SizedBox(height: 8),
-                          children[6],
-                        ],
-                      );
+                if (wide) {
+                  return Row(children: [
+                    Expanded(child: pagoField),
+                    const SizedBox(width: 8),
+                    Expanded(child: servicioField),
+                    const SizedBox(width: 8),
+                    Expanded(child: buscarField),
+                    const SizedBox(width: 8),
+                    aplicarButton,
+                  ]);
+                }
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    pagoField,
+                    const SizedBox(height: 8),
+                    servicioField,
+                    const SizedBox(height: 8),
+                    buscarField,
+                    const SizedBox(height: 8),
+                    aplicarButton,
+                  ],
+                );
               });
             },
           ),
@@ -423,9 +437,13 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(label, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                    Text(label,
+                        style: const TextStyle(
+                            fontSize: 12, color: Colors.black54)),
                     const SizedBox(height: 2),
-                    Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                    Text(value,
+                        style: const TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.w800)),
                   ],
                 ),
               ),
@@ -474,7 +492,11 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
     final cli = (x['cliente_snapshot'] ?? {}) as Map<String, dynamic>;
     final nombre = (cli['nombre'] ?? '').toString();
     final apellido = (cli['apellido'] ?? '').toString();
-    final nombreCompleto = [nombre, apellido].where((e) => e.trim().isNotEmpty).join(' ').trim().isEmpty
+    final nombreCompleto = [nombre, apellido]
+            .where((e) => e.trim().isNotEmpty)
+            .join(' ')
+            .trim()
+            .isEmpty
         ? (cli['nombre_completo'] ?? '').toString()
         : '$nombre $apellido';
     final tel = (cli['telefono'] ?? '').toString();
@@ -484,15 +506,21 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
 
     final pago = (x['pago'] ?? {}) as Map<String, dynamic>;
     final tipo = (pago['tipo'] ?? '').toString();
-    final monto = (pago['monto'] as num?)?.toDouble() ?? (x['precio_snapshot'] as num?)?.toDouble() ?? 0.0;
+    final monto = (pago['monto'] as num?)?.toDouble() ??
+        (x['precio_snapshot'] as num?)?.toDouble() ??
+        0.0;
 
     final delivered = _toDate(x['delivered_at']);
     final started = _toDate(x['started_at']);
     final finished = _toDate(x['finished_at']);
     final created = _toDate(x['created_at']);
 
-    final espera = (created != null && started != null) ? started.difference(created) : null;
-    final dur = (started != null && finished != null) ? finished.difference(started) : null;
+    final espera = (created != null && started != null)
+        ? started.difference(created)
+        : null;
+    final dur = (started != null && finished != null)
+        ? finished.difference(started)
+        : null;
 
     return Material(
       color: Colors.white,
@@ -509,46 +537,70 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
           child: Row(
             children: [
               Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(
-                    patente.trim().isEmpty ? '$nombreCompleto • $veh' : '$nombreCompleto • $patente • $veh',
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(children: [
-                    Icon(Icons.access_time, size: 14, color: kPrimary),
-                    const SizedBox(width: 4),
-                    Text(
-                      delivered == null ? '-' : DateFormat('dd/MM HH:mm').format(delivered),
-                      style: const TextStyle(fontSize: 12, color: Colors.black87),
-                    ),
-                    const SizedBox(width: 10),
-                    Icon(Icons.local_car_wash, size: 14, color: kPrimary),
-                    const SizedBox(width: 4),
-                    Text(srv, style: const TextStyle(fontSize: 12, color: Colors.black87)),
-                    const SizedBox(width: 10),
-                    Icon(Icons.phone, size: 14, color: Colors.black45),
-                    const SizedBox(width: 4),
-                    Flexible(
-                      child: Text(tel,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 12, color: Colors.black54)),
-                    ),
-                  ]), 
-                  const SizedBox(height: 4),
-                  Row(children: [
-                    const Text('Espera: ', style: TextStyle(fontSize: 12, color: Colors.black54)),
-                    Text(_fmtDur(espera), style: const TextStyle(fontSize: 12)),
-                    const SizedBox(width: 12),
-                    const Text('Lavado: ', style: TextStyle(fontSize: 12, color: Colors.black54)),
-                    Text(_fmtDur(dur), style: const TextStyle(fontSize: 12)),
-                  ]),
-                ]),
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        patente.trim().isEmpty
+                            ? '$nombreCompleto • $veh'
+                            : '$nombreCompleto • $patente • $veh',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(children: [
+                        Icon(Icons.access_time, size: 14, color: kPrimary),
+                        const SizedBox(width: 4),
+                        Text(
+                          delivered == null
+                              ? '-'
+                              : DateFormat('dd/MM HH:mm').format(delivered),
+                          style: const TextStyle(
+                              fontSize: 12, color: Colors.black87),
+                        ),
+                        const SizedBox(width: 10),
+                        Icon(Icons.local_car_wash, size: 14, color: kPrimary),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(srv,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  fontSize: 12, color: Colors.black87)),
+                        ),
+                        const SizedBox(width: 10),
+                        Icon(Icons.phone, size: 14, color: Colors.black45),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(tel,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  fontSize: 12, color: Colors.black54)),
+                        ),
+                      ]),
+                      const SizedBox(height: 4),
+                      Row(children: [
+                        const Text('Espera: ',
+                            style:
+                                TextStyle(fontSize: 12, color: Colors.black54)),
+                        Text(_fmtDur(espera),
+                            style: const TextStyle(fontSize: 12)),
+                        const SizedBox(width: 12),
+                        const Text('Lavado: ',
+                            style:
+                                TextStyle(fontSize: 12, color: Colors.black54)),
+                        Text(_fmtDur(dur),
+                            style: const TextStyle(fontSize: 12)),
+                      ]),
+                    ]),
               ),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text(_money.format(monto), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                  Text(_money.format(monto),
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.w800)),
                   const SizedBox(height: 4),
                   _chip(tipo.isEmpty ? '—' : tipo),
                 ],
@@ -583,33 +635,44 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
         border: Border.all(color: c.withOpacity(.25)),
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Text(t, style: TextStyle(fontSize: 12, color: c, fontWeight: FontWeight.w600)),
+      child: Text(t,
+          style:
+              TextStyle(fontSize: 12, color: c, fontWeight: FontWeight.w600)),
     );
   }
 
-  Widget _quick(String label, VoidCallback onTap) {
-    return OutlinedButton(
-      onPressed: onTap,
-      style: OutlinedButton.styleFrom(
-        foregroundColor: kPrimary,
-        side: const BorderSide(color: Color(0xFFE6EEF9)),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-      child: Text(label),
-    );
-  }
-
-  Future<void> _pickRange() async {
-    final r = await showDateRangePicker(
+  Future<void> _pickDesde() async {
+    final hastaVisible = _range.end.subtract(const Duration(days: 1));
+    final picked = await showDatePicker(
       context: context,
-      firstDate: DateTime(2023, 1, 1),
-      lastDate: DateTime.now(),
-      initialDateRange: _range,
-      helpText: 'Rango de fechas',
-      saveText: 'Aceptar',
+      initialDate: _range.start,
+      firstDate: DateTime(2023),
+      lastDate: hastaVisible,
     );
-    if (r != null) {
-      setState(() => _range = r);
+    if (picked != null) {
+      setState(() {
+        _range = DateTimeRange(start: picked, end: _range.end);
+      });
+      _cargar();
+    }
+  }
+
+  Future<void> _pickHasta() async {
+    final hastaVisible = _range.end.subtract(const Duration(days: 1));
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: hastaVisible,
+      firstDate: _range.start,
+      lastDate: DateTime.now(),
+    );
+    if (picked != null) {
+      setState(() {
+        _range = DateTimeRange(
+          start: _range.start,
+          end: DateTime(picked.year, picked.month, picked.day)
+              .add(const Duration(days: 1)),
+        );
+      });
       _cargar();
     }
   }
@@ -622,7 +685,11 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
 
     final nombre = (cli['nombre'] ?? '').toString();
     final apellido = (cli['apellido'] ?? '').toString();
-    final nombreCompleto = [nombre, apellido].where((e) => e.trim().isNotEmpty).join(' ').trim().isEmpty
+    final nombreCompleto = [nombre, apellido]
+            .where((e) => e.trim().isNotEmpty)
+            .join(' ')
+            .trim()
+            .isEmpty
         ? (cli['nombre_completo'] ?? '').toString()
         : '$nombre $apellido';
 
@@ -630,33 +697,39 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
       context: context,
       builder: (_) => AlertDialog(
         title: Text(nombreCompleto.isEmpty ? 'Detalle' : nombreCompleto),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _dl('Teléfono', (cli['telefono'] ?? '—').toString()),
-            _dl('Vehículo', (x['vehiculo'] ?? '—').toString()),
-            _dl('Patente', (x['patente'] ?? '—').toString()),
-            _dl('Servicio', (x['servicio'] ?? '—').toString()),
-            _dl('Monto', _money.format((pago['monto'] as num?) ?? (x['precio_snapshot'] as num?) ?? 0)),
-            _dl('Medio de pago', (pago['tipo'] ?? '—').toString()),
-          ],
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _dl('Teléfono', (cli['telefono'] ?? '—').toString()),
+              _dl('Vehículo', (x['vehiculo'] ?? '—').toString()),
+              _dl('Patente', (x['patente'] ?? '—').toString()),
+              _dl('Servicio', (x['servicio'] ?? '—').toString()),
+              _dl(
+                  'Monto',
+                  _money.format((pago['monto'] as num?) ??
+                      (x['precio_snapshot'] as num?) ??
+                      0)),
+              _dl('Medio de pago', (pago['tipo'] ?? '—').toString()),
+            ],
+          ),
         ),
         actions: [
-  TextButton(
-    onPressed: () => Navigator.of(context, rootNavigator: true).pop(),
-    child: const Text('Cerrar'),
-  ),
-  FilledButton(
-    onPressed: () async {
-      // cerrar el diálogo con el rootNavigator
-      Navigator.of(context, rootNavigator: true).pop();
-      // abrir la hoja en el próximo micro-tick con el context del State
-      Future.microtask(() => _openEditSheet(d));
-    },
-    child: const Text('Editar'),
-  ),
-],
+          TextButton(
+            onPressed: () => Navigator.of(context, rootNavigator: true).pop(),
+            child: const Text('Cerrar'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              // cerrar el diálogo con el rootNavigator
+              Navigator.of(context, rootNavigator: true).pop();
+              // abrir la hoja en el próximo micro-tick con el context del State
+              Future.microtask(() => _openEditSheet(d));
+            },
+            child: const Text('Editar'),
+          ),
+        ],
       ),
     );
   }
@@ -670,219 +743,255 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
   String? _srvSelNombre;
   double? _srvPrecio;
 
-  // validador de patente AR
-  final _reMercosur = RegExp(r'^[A-Z]{2}\d{3}[A-Z]{2}$');
-  final _reViejaAuto = RegExp(r'^[A-Z]{3}\d{3}$');
-  final _reViejaMoto = RegExp(r'^\d{3}[A-Z]{3}$');
-  String _normPat(String s) => s.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
+  String _normPat(String s) => normalizarPatente(s);
 
-  Future<void> _openEditSheet(QueryDocumentSnapshot<Map<String, dynamic>> d) async {
-  final x = d.data();
-  final pago = (x['pago'] ?? {}) as Map<String, dynamic>;
+  Future<void> _openEditSheet(
+      QueryDocumentSnapshot<Map<String, dynamic>> d) async {
+    final x = d.data();
+    final pago = (x['pago'] ?? {}) as Map<String, dynamic>;
 
-  _vehCtrl.text   = (x['vehiculo'] ?? '').toString();
-  _patCtrl.text   = (x['patente']  ?? '').toString();
-  _montoCtrl.text = ((pago['monto'] as num?) ?? (x['precio_snapshot'] as num?) ?? 0).toStringAsFixed(0);
-  _tipoPago       = (pago['tipo'] ?? 'efectivo').toString();
-  _srvSelNombre   = (x['servicio'] ?? '').toString();
-  _srvSelId       = (x['servicio_id'] ?? '').toString();
-  _srvPrecio      = (x['precio_snapshot'] as num?)?.toDouble();
+    _vehCtrl.text = (x['vehiculo'] ?? '').toString();
+    _patCtrl.text = (x['patente'] ?? '').toString();
+    _montoCtrl.text =
+        ((pago['monto'] as num?) ?? (x['precio_snapshot'] as num?) ?? 0)
+            .toStringAsFixed(0);
+    _tipoPago = (pago['tipo'] ?? 'efectivo').toString();
+    _srvSelNombre = (x['servicio'] ?? '').toString();
+    _srvSelId = (x['servicio_id'] ?? '').toString();
+    _srvPrecio = (x['precio_snapshot'] as num?)?.toDouble();
 
-  QuerySnapshot<Map<String, dynamic>> servicios;
-  try {
-    servicios = await _serviciosCol.orderBy('nombre').get();
-  } catch (e) {
+    QuerySnapshot<Map<String, dynamic>> servicios;
+    try {
+      servicios = await _serviciosCol.orderBy('nombre').get();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudieron cargar servicios: $e')),
+      );
+      return;
+    }
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('No se pudieron cargar servicios: $e')),
-    );
-    return;
-  }
-  if (!mounted) return;
 
-  showModalBottomSheet(
-    context: context,
-    useRootNavigator: true,
-    isScrollControlled: true,
-    builder: (_) => Padding(
-      padding: EdgeInsets.only(
-        left: 16, right: 16, top: 16,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 16,
-      ),
-      child: StatefulBuilder(
-        builder: (context, setS) {
-          return Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text('Editar orden', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 12),
-
-              TextField(
-                controller: _vehCtrl,
-                decoration: const InputDecoration(labelText: 'Vehículo', border: OutlineInputBorder()),
-              ),
-              const SizedBox(height: 8),
-
-              TextField(
-                controller: _patCtrl,
-                textCapitalization: TextCapitalization.characters,
-                decoration: const InputDecoration(labelText: 'Patente', border: OutlineInputBorder()),
-                onChanged: (_) => setS(() {}),
-              ),
-              const SizedBox(height: 8),
-
-              DropdownButtonFormField<String>(
-                initialValue: _tipoPago,
-                items: const [
-                  DropdownMenuItem(value: 'efectivo', child: Text('Efectivo')),
-                  DropdownMenuItem(value: 'transferencia', child: Text('Transferencia')),
-                  DropdownMenuItem(value: 'otro', child: Text('Otro')),
-                ],
-                onChanged: (v) => setS(() => _tipoPago = v ?? 'efectivo'),
-                decoration: const InputDecoration(labelText: 'Medio de pago', border: OutlineInputBorder()),
-              ),
-              const SizedBox(height: 8),
-
-              TextField(
-                controller: _montoCtrl,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(labelText: 'Monto', prefixText: r'$ ', border: OutlineInputBorder()),
-              ),
-              const SizedBox(height: 8),
-
-              DropdownButtonFormField<String>(
-                initialValue: _srvSelId?.isEmpty == true ? null : _srvSelId,
-                items: servicios.docs
-                    .where((e) => (e.data()['activo'] as bool?) ?? true)
-                    .map((e) => DropdownMenuItem(
-                          value: e.id,
-                          child: Text((e.data()['nombre'] ?? '').toString()),
-                        ))
-                    .toList(),
-                onChanged: (id) {
-                  final e = servicios.docs.firstWhere((z) => z.id == id);
-                  final data = e.data();
-                  setS(() {
-                    _srvSelId     = e.id;
-                    _srvSelNombre = (data['nombre'] ?? '').toString();
-                    _srvPrecio    = (data['precio'] as num?)?.toDouble();
-                  });
-                },
-                decoration: const InputDecoration(labelText: 'Servicio', border: OutlineInputBorder()),
-              ),
-              if (_srvPrecio != null) ...[
-                const SizedBox(height: 6),
-                Text('Precio de servicio: ${_money.format(_srvPrecio)}',
-                    style: const TextStyle(fontSize: 12, color: Colors.black54)),
-              ],
-              const SizedBox(height: 12),
-
-              Row(
+    showModalBottomSheet(
+      context: context,
+      useRootNavigator: true,
+      isScrollControlled: true,
+      builder: (sheetContext) => SafeArea(
+        child: SingleChildScrollView(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 16,
+            bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 16,
+          ),
+          child: StatefulBuilder(
+            builder: (context, setS) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Cancelar'),
-                    ),
+                  const Text('Editar orden',
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _vehCtrl,
+                    decoration: const InputDecoration(
+                        labelText: 'Vehículo', border: OutlineInputBorder()),
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: FilledButton(
-                      onPressed: () async {
-                        // Validaciones
-                        final m = double.tryParse(_montoCtrl.text.trim());
-                        if (m == null || m <= 0) {
-                          ScaffoldMessenger.of(context)
-                              .showSnackBar(const SnackBar(content: Text('Monto inválido')));
-                          return;
-                        }
-                        final p = _normPat(_patCtrl.text.trim());
-                        if (!(p.isEmpty || _reMercosur.hasMatch(p) || _reViejaAuto.hasMatch(p) || _reViejaMoto.hasMatch(p))) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Patente invalida (AB123CD, ABC123 o 123ABC)')),
-                          );
-                          return;
-                        }
-
-                        final cambios = <String, dynamic>{
-                          'vehiculo': _vehCtrl.text.trim(),
-                          if (_patCtrl.text.trim().isEmpty) ...{
-                            'patente': FieldValue.delete(),
-                            'patente_norm': FieldValue.delete(),
-                          } else ...{
-                            'patente': _patCtrl.text.trim().toUpperCase(),
-                            'patente_norm': p,
-                          },
-                          'pago': {'tipo': _tipoPago, 'monto': m},
-                          if (_srvSelNombre != null && _srvSelNombre!.isNotEmpty) ...{
-                            'servicio': _srvSelNombre,
-                            'servicio_id': _srvSelId,
-                            if (_srvPrecio != null) 'precio_snapshot': _srvPrecio,
-                          },
-                          // Campos de auditoría (válidos aquí)
-                          'edited_at': FieldValue.serverTimestamp(),
-                          'edited_by_uid': _uid,
-                          'edited_by_role': 'admin',
-                        };
-
-                        try {
-                          // 1) actualizar campos
-                          await d.reference.update(cambios);
-
-                          // 2) agregar log sin serverTimestamp dentro de arrayUnion
-                          await d.reference.update({
-                            'edit_log': FieldValue.arrayUnion([
-                              {
-                                'at': Timestamp.now(), // ✅ válido dentro de arrayUnion
-                                'by': _uid,
-                                'changes': {
-                                  'vehiculo': _vehCtrl.text.trim(),
-                                  'patente': _patCtrl.text.trim().toUpperCase(),
-                                  'pago.tipo': _tipoPago,
-                                  'pago.monto': m,
-                                  'servicio': _srvSelNombre,
-                                }
-                              }
-                            ])
-                          });
-
-                          if (!mounted) return;
-                          Navigator.pop(context);
-                          _cargar();
-                          ScaffoldMessenger.of(context)
-                              .showSnackBar(const SnackBar(content: Text('Orden actualizada')));
-                        } catch (e) {
-                          if (!mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('No se pudo actualizar: $e')),
-                          );
-                        }
-                      },
-                      child: const Text('Guardar'),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _patCtrl,
+                    textCapitalization: TextCapitalization.characters,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(
+                          RegExp(r"[A-Za-z0-9 \-]")),
+                      LengthLimitingTextInputFormatter(12),
+                    ],
+                    decoration: const InputDecoration(
+                      labelText: 'Patente / matricula',
+                      hintText: patenteHint,
+                      border: OutlineInputBorder(),
                     ),
+                    onChanged: (s) {
+                      final up = s.toUpperCase();
+                      if (s != up) {
+                        final sel = _patCtrl.selection;
+                        _patCtrl.value =
+                            TextEditingValue(text: up, selection: sel);
+                      }
+                      setS(() {});
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    initialValue: _tipoPago,
+                    items: const [
+                      DropdownMenuItem(
+                          value: 'efectivo', child: Text('Efectivo')),
+                      DropdownMenuItem(
+                          value: 'transferencia', child: Text('Transferencia')),
+                      DropdownMenuItem(value: 'otro', child: Text('Otro')),
+                    ],
+                    onChanged: (v) => setS(() => _tipoPago = v ?? 'efectivo'),
+                    decoration: const InputDecoration(
+                        labelText: 'Medio de pago',
+                        border: OutlineInputBorder()),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _montoCtrl,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(
+                        labelText: 'Monto',
+                        prefixText: r'$ ',
+                        border: OutlineInputBorder()),
+                  ),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    initialValue: _srvSelId?.isEmpty == true ? null : _srvSelId,
+                    items: servicios.docs
+                        .where((e) => (e.data()['activo'] as bool?) ?? true)
+                        .map((e) => DropdownMenuItem(
+                              value: e.id,
+                              child:
+                                  Text((e.data()['nombre'] ?? '').toString()),
+                            ))
+                        .toList(),
+                    onChanged: (id) {
+                      final e = servicios.docs.firstWhere((z) => z.id == id);
+                      final data = e.data();
+                      setS(() {
+                        _srvSelId = e.id;
+                        _srvSelNombre = (data['nombre'] ?? '').toString();
+                        _srvPrecio = (data['precio'] as num?)?.toDouble();
+                      });
+                    },
+                    decoration: const InputDecoration(
+                        labelText: 'Servicio', border: OutlineInputBorder()),
+                  ),
+                  if (_srvPrecio != null) ...[
+                    const SizedBox(height: 6),
+                    Text('Precio de servicio: ${_money.format(_srvPrecio)}',
+                        style: const TextStyle(
+                            fontSize: 12, color: Colors.black54)),
+                  ],
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('Cancelar'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: () async {
+                            // Validaciones
+                            final m = double.tryParse(_montoCtrl.text.trim());
+                            if (m == null || m <= 0) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                      content: Text('Monto inválido')));
+                              return;
+                            }
+                            final p = _normPat(_patCtrl.text.trim());
+                            if (!(p.isEmpty || patenteValida(p))) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text(patenteError)),
+                              );
+                              return;
+                            }
+
+                            final cambios = <String, dynamic>{
+                              'vehiculo': _vehCtrl.text.trim(),
+                              if (_patCtrl.text.trim().isEmpty) ...{
+                                'patente': FieldValue.delete(),
+                                'patente_norm': FieldValue.delete(),
+                              } else ...{
+                                'patente': _patCtrl.text.trim().toUpperCase(),
+                                'patente_norm': p,
+                              },
+                              'pago': {'tipo': _tipoPago, 'monto': m},
+                              if (_srvSelNombre != null &&
+                                  _srvSelNombre!.isNotEmpty) ...{
+                                'servicio': _srvSelNombre,
+                                'servicio_id': _srvSelId,
+                                if (_srvPrecio != null)
+                                  'precio_snapshot': _srvPrecio,
+                              },
+                              // Campos de auditoría (válidos aquí)
+                              'edited_at': FieldValue.serverTimestamp(),
+                              'edited_by_uid': _uid,
+                              'edited_by_role': 'admin',
+                            };
+
+                            final navigator = Navigator.of(context);
+                            final messenger = ScaffoldMessenger.of(context);
+
+                            try {
+                              // 1) actualizar campos
+                              await d.reference.update(cambios);
+
+                              // 2) agregar log sin serverTimestamp dentro de arrayUnion
+                              await d.reference.update({
+                                'edit_log': FieldValue.arrayUnion([
+                                  {
+                                    'at': Timestamp
+                                        .now(), // ✅ válido dentro de arrayUnion
+                                    'by': _uid,
+                                    'changes': {
+                                      'vehiculo': _vehCtrl.text.trim(),
+                                      'patente':
+                                          _patCtrl.text.trim().toUpperCase(),
+                                      'pago.tipo': _tipoPago,
+                                      'pago.monto': m,
+                                      'servicio': _srvSelNombre,
+                                    }
+                                  }
+                                ])
+                              });
+
+                              if (!mounted) return;
+                              navigator.pop();
+                              _cargar();
+                              messenger.showSnackBar(const SnackBar(
+                                  content: Text('Orden actualizada')));
+                            } catch (e) {
+                              if (!mounted) return;
+                              messenger.showSnackBar(
+                                SnackBar(
+                                    content: Text('No se pudo actualizar: $e')),
+                              );
+                            }
+                          },
+                          child: const Text('Guardar'),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
-              ),
-            ],
-          );
-        },
+              );
+            },
+          ),
+        ),
       ),
-    ),
-  );
-}
-
+    );
+  }
 
   Widget _dl(String k, String v) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
       child: Row(children: [
-        SizedBox(width: 130, child: Text(k, style: const TextStyle(fontWeight: FontWeight.w600))),
+        SizedBox(
+            width: 130,
+            child:
+                Text(k, style: const TextStyle(fontWeight: FontWeight.w600))),
         Expanded(child: Text(v)),
       ]),
     );
   }
 }
-
-
-

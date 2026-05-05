@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 
 class ColaScreen extends StatefulWidget {
   final String tenantId; // UID del dueño
-  final String role;     // 'admin' | 'operator'
+  final String role; // 'admin' | 'operator'
   const ColaScreen({super.key, required this.tenantId, required this.role});
 
   @override
@@ -26,9 +26,15 @@ class _ColaScreenState extends State<ColaScreen> {
   final Set<String> _busy = {};
 
   CollectionReference<Map<String, dynamic>> get _ordenesCol =>
-      FirebaseFirestore.instance.collection('users').doc(widget.tenantId).collection('ordenes');
+      FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.tenantId)
+          .collection('ordenes');
   CollectionReference<Map<String, dynamic>> get _serviciosCol =>
-      FirebaseFirestore.instance.collection('users').doc(widget.tenantId).collection('servicios');
+      FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.tenantId)
+          .collection('servicios');
 
   bool _isBusy(String id) => _busy.contains(id);
   Future<void> _guard(Future<void> Function() f, String id) async {
@@ -78,7 +84,8 @@ class _ColaScreenState extends State<ColaScreen> {
         ..clear()
         ..addAll({
           for (final d in s.docs)
-            (d.data()['nombre'] as String): (d.data()['duracion_min'] as num).toInt()
+            (d.data()['nombre'] as String):
+                (d.data()['duracion_min'] as num).toInt()
         });
       if (mounted) setState(() {});
     });
@@ -95,7 +102,8 @@ class _ColaScreenState extends State<ColaScreen> {
     super.dispose();
   }
 
-  Future<void> _iniciarOrden(QueryDocumentSnapshot<Map<String, dynamic>> ordenDoc) async {
+  Future<void> _iniciarOrden(
+      QueryDocumentSnapshot<Map<String, dynamic>> ordenDoc) async {
     final ref = ordenDoc.reference;
     await FirebaseFirestore.instance.runTransaction((t) async {
       final snap = await t.get(ref);
@@ -117,7 +125,8 @@ class _ColaScreenState extends State<ColaScreen> {
     });
   }
 
-  Future<void> _marcarListo(QueryDocumentSnapshot<Map<String, dynamic>> doc) async {
+  Future<void> _marcarListo(
+      QueryDocumentSnapshot<Map<String, dynamic>> doc) async {
     await doc.reference.update({
       'estado': 'listo',
       'finished_at': FieldValue.serverTimestamp(),
@@ -131,7 +140,9 @@ class _ColaScreenState extends State<ColaScreen> {
   ) async {
     final x = doc.data();
     final ctrlMonto = TextEditingController(
-      text: (x['precio'] as num?)?.toStringAsFixed(0) ?? '',
+      text: ((x['precio_snapshot'] as num?) ?? (x['precio'] as num?))
+              ?.toStringAsFixed(0) ??
+          '',
     );
     String tipo = 'efectivo';
 
@@ -145,7 +156,8 @@ class _ColaScreenState extends State<ColaScreen> {
             initialValue: tipo,
             items: const [
               DropdownMenuItem(value: 'efectivo', child: Text('Efectivo')),
-              DropdownMenuItem(value: 'transferencia', child: Text('Transferencia')),
+              DropdownMenuItem(
+                  value: 'transferencia', child: Text('Transferencia')),
               DropdownMenuItem(value: 'otro', child: Text('Otro')),
             ],
             onChanged: (v) => tipo = v ?? 'efectivo',
@@ -159,14 +171,26 @@ class _ColaScreenState extends State<ColaScreen> {
           ),
         ]),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
-          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Confirmar')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancelar')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Confirmar')),
         ],
       ),
     );
     if (ok != true) return;
 
     final monto = double.tryParse(ctrlMonto.text.trim()) ?? 0;
+    if (monto <= 0) {
+      if (!ctx.mounted) return;
+      ScaffoldMessenger.of(ctx).showSnackBar(
+        const SnackBar(content: Text('Ingresá un monto válido')),
+      );
+      return;
+    }
+
     await doc.reference.update({
       'estado': 'entregado',
       'delivered_at': FieldValue.serverTimestamp(),
@@ -203,7 +227,9 @@ class _ColaScreenState extends State<ColaScreen> {
         border: Border.all(color: c.withValues(alpha: .25)),
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Text(txt, style: TextStyle(fontSize: 12, color: c, fontWeight: FontWeight.w600)),
+      child: Text(txt,
+          style:
+              TextStyle(fontSize: 12, color: c, fontWeight: FontWeight.w600)),
     );
   }
 
@@ -212,7 +238,11 @@ class _ColaScreenState extends State<ColaScreen> {
     final cli = _asMapDyn(x['cliente_snapshot'] ?? x['cliente'] ?? {});
     final nombre = (cli['nombre'] ?? '') as String;
     final apellido = (cli['apellido'] ?? '') as String;
-    final nombreCompleto = [nombre, apellido].where((e) => (e).trim().isNotEmpty).join(' ').trim().isEmpty
+    final nombreCompleto = [nombre, apellido]
+            .where((e) => (e).trim().isNotEmpty)
+            .join(' ')
+            .trim()
+            .isEmpty
         ? ((cli['nombre_completo'] ?? '') as String)
         : '$nombre $apellido';
     final tel = (cli['telefono'] ?? '') as String;
@@ -254,10 +284,13 @@ class _ColaScreenState extends State<ColaScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      patente.trim().isEmpty ? '$nombreCompleto • $veh' : '$nombreCompleto • $patente • $veh',
+                      patente.trim().isEmpty
+                          ? '$nombreCompleto • $veh'
+                          : '$nombreCompleto • $patente • $veh',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 4),
                     Wrap(
@@ -268,29 +301,38 @@ class _ColaScreenState extends State<ColaScreen> {
                         Row(mainAxisSize: MainAxisSize.min, children: [
                           Icon(Icons.local_car_wash, size: 14, color: kPrimary),
                           const SizedBox(width: 4),
-                          Text(srv, style: const TextStyle(fontSize: 12, color: Colors.black87)),
+                          Text(srv,
+                              style: const TextStyle(
+                                  fontSize: 12, color: Colors.black87)),
                         ]),
                         Row(mainAxisSize: MainAxisSize.min, children: [
                           Icon(Icons.phone, size: 14, color: Colors.black45),
                           const SizedBox(width: 4),
-                          Text(tel, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                          Text(tel,
+                              style: const TextStyle(
+                                  fontSize: 12, color: Colors.black54)),
                         ]),
                         if (patente.trim().isNotEmpty)
                           Row(mainAxisSize: MainAxisSize.min, children: [
-                            Icon(Icons.numbers, size: 14, color: Colors.black45),
+                            Icon(Icons.numbers,
+                                size: 14, color: Colors.black45),
                             const SizedBox(width: 4),
-                            Text(patente, style: const TextStyle(fontSize: 12, color: Colors.black87)),
+                            Text(patente,
+                                style: const TextStyle(
+                                    fontSize: 12, color: Colors.black87)),
                           ]),
                         _stateChip(estado),
                       ],
                     ),
                     const SizedBox(height: 4),
                     Text('TE: ${_fmtMMSS(totalMin * 60)}',
-                        style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                        style: const TextStyle(
+                            fontSize: 12, color: Colors.black54)),
                     if (secs != null) ...[
                       const SizedBox(height: 4),
                       Text('$timeLabel: ${_fmtMMSS(secs)}',
-                          style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                          style: const TextStyle(
+                              fontSize: 12, color: Colors.black54)),
                     ],
                   ],
                 ),
@@ -301,19 +343,25 @@ class _ColaScreenState extends State<ColaScreen> {
                 _btnPrimary(
                   icon: Icons.play_arrow,
                   label: 'Iniciar',
-                  onTap: _isBusy(d.id) ? null : () => _guard(() => _iniciarOrden(d), d.id),
+                  onTap: _isBusy(d.id)
+                      ? null
+                      : () => _guard(() => _iniciarOrden(d), d.id),
                 ),
               if (estado == 'en_lavado')
                 _btnSuccess(
                   icon: Icons.check_circle,
                   label: 'Listo',
-                  onTap: _isBusy(d.id) ? null : () => _guard(() => _marcarListo(d), d.id),
+                  onTap: _isBusy(d.id)
+                      ? null
+                      : () => _guard(() => _marcarListo(d), d.id),
                 ),
               if (estado == 'listo')
                 _btnOutline(
                   icon: Icons.attach_money,
                   label: 'Cobrar',
-                  onTap: _isBusy(d.id) ? null : () => _guard(() => _entregarYCobrar(context, d), d.id),
+                  onTap: _isBusy(d.id)
+                      ? null
+                      : () => _guard(() => _entregarYCobrar(context, d), d.id),
                 ),
             ],
           ),
@@ -324,11 +372,18 @@ class _ColaScreenState extends State<ColaScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final colaQ = _ordenesCol.where('estado', isEqualTo: 'en_cola').orderBy('created_at', descending: true);
-    final enLavQ = _ordenesCol.where('estado', isEqualTo: 'en_lavado').orderBy('started_at', descending: true);
-    final listosQ = _ordenesCol.where('estado', isEqualTo: 'listo').orderBy('finished_at', descending: true);
+    final colaQ = _ordenesCol
+        .where('estado', isEqualTo: 'en_cola')
+        .orderBy('created_at', descending: true);
+    final enLavQ = _ordenesCol
+        .where('estado', isEqualTo: 'en_lavado')
+        .orderBy('started_at', descending: true);
+    final listosQ = _ordenesCol
+        .where('estado', isEqualTo: 'listo')
+        .orderBy('finished_at', descending: true);
 
-    final textScaler = MediaQuery.textScalerOf(context).clamp(minScaleFactor: 0.9, maxScaleFactor: 1.2);
+    final textScaler = MediaQuery.textScalerOf(context)
+        .clamp(minScaleFactor: 0.9, maxScaleFactor: 1.2);
 
     return MediaQuery(
       data: MediaQuery.of(context).copyWith(textScaler: textScaler),
@@ -366,11 +421,14 @@ class _ColaScreenState extends State<ColaScreen> {
                       if (s.hasError) {
                         return Padding(
                           padding: const EdgeInsets.all(8.0),
-                          child: Text('Error: ${s.error}', style: const TextStyle(color: Colors.red)),
+                          child: Text('Error: ${s.error}',
+                              style: const TextStyle(color: Colors.red)),
                         );
                       }
                       if (!s.hasData) {
-                        return const SizedBox(height: 64, child: Center(child: CircularProgressIndicator()));
+                        return const SizedBox(
+                            height: 64,
+                            child: Center(child: CircularProgressIndicator()));
                       }
                       final docs = s.data!.docs;
                       if (docs.isEmpty) {
@@ -391,9 +449,15 @@ class _ColaScreenState extends State<ColaScreen> {
                 );
               }
 
-              final enColaW = section('En cola', Icons.hourglass_bottom, colaQ.snapshots(), empty: 'Sin autos en cola');
-              final enLavW = section('En lavado', Icons.local_car_wash, enLavQ.snapshots(), empty: '—');
-              final listosW = section('Para retirar', Icons.check_circle, listosQ.snapshots(), empty: '—');
+              final enColaW = section(
+                  'En cola', Icons.hourglass_bottom, colaQ.snapshots(),
+                  empty: 'Sin autos en cola');
+              final enLavW = section(
+                  'En lavado', Icons.local_car_wash, enLavQ.snapshots(),
+                  empty: '—');
+              final listosW = section(
+                  'Para retirar', Icons.check_circle, listosQ.snapshots(),
+                  empty: '—');
 
               return Align(
                 alignment: Alignment.topCenter,
@@ -415,10 +479,14 @@ class _ColaScreenState extends State<ColaScreen> {
                             ),
                             child: const Row(
                               children: [
-                                Icon(Icons.playlist_add_check, color: Colors.white),
+                                Icon(Icons.playlist_add_check,
+                                    color: Colors.white),
                                 SizedBox(width: 8),
                                 Text('Cola de trabajo',
-                                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+                                    style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600)),
                               ],
                             ),
                           ),
@@ -444,7 +512,8 @@ class _ColaScreenState extends State<ColaScreen> {
   }
 
   // Botones
-  Widget _btnPrimary({required IconData icon, required String label, VoidCallback? onTap}) {
+  Widget _btnPrimary(
+      {required IconData icon, required String label, VoidCallback? onTap}) {
     return ElevatedButton.icon(
       onPressed: onTap,
       icon: Icon(icon, size: 18),
@@ -459,7 +528,8 @@ class _ColaScreenState extends State<ColaScreen> {
     );
   }
 
-  Widget _btnSuccess({required IconData icon, required String label, VoidCallback? onTap}) {
+  Widget _btnSuccess(
+      {required IconData icon, required String label, VoidCallback? onTap}) {
     return ElevatedButton.icon(
       onPressed: onTap,
       icon: Icon(icon, size: 18),
@@ -474,7 +544,8 @@ class _ColaScreenState extends State<ColaScreen> {
     );
   }
 
-  Widget _btnOutline({required IconData icon, required String label, VoidCallback? onTap}) {
+  Widget _btnOutline(
+      {required IconData icon, required String label, VoidCallback? onTap}) {
     return OutlinedButton.icon(
       onPressed: onTap,
       icon: Icon(icon, size: 18),
@@ -493,7 +564,8 @@ class _SectionCard extends StatelessWidget {
   final String title;
   final IconData icon;
   final Widget child;
-  const _SectionCard({required this.title, required this.icon, required this.child});
+  const _SectionCard(
+      {required this.title, required this.icon, required this.child});
 
   @override
   Widget build(BuildContext context) {
@@ -501,7 +573,10 @@ class _SectionCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(_ColaScreenState._radius),
-        boxShadow: const [BoxShadow(color: Color(0x11000000), blurRadius: 10, offset: Offset(0, 3))],
+        boxShadow: const [
+          BoxShadow(
+              color: Color(0x11000000), blurRadius: 10, offset: Offset(0, 3))
+        ],
       ),
       child: Column(
         children: [
@@ -511,7 +586,9 @@ class _SectionCard extends StatelessWidget {
               children: [
                 Icon(icon, color: _ColaScreenState.kPrimary),
                 const SizedBox(width: 8),
-                Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                Text(title,
+                    style: const TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.w600)),
               ],
             ),
           ),
@@ -525,21 +602,3 @@ class _SectionCard extends StatelessWidget {
     );
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

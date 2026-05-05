@@ -87,8 +87,10 @@ class _BalanceScreenState extends State<BalanceScreen> {
 
   Future<void> cargarBalance() async {
     if (fechaDesde == null || fechaHasta == null) return;
-    final inicio = DateTime(fechaDesde!.year, fechaDesde!.month, fechaDesde!.day);
-    final fin = DateTime(fechaHasta!.year, fechaHasta!.month, fechaHasta!.day + 1);
+    final inicio =
+        DateTime(fechaDesde!.year, fechaDesde!.month, fechaDesde!.day);
+    final fin =
+        DateTime(fechaHasta!.year, fechaHasta!.month, fechaHasta!.day + 1);
 
     final qs = await _userRef
         .collection('ordenes')
@@ -105,9 +107,12 @@ class _BalanceScreenState extends State<BalanceScreen> {
         final tipo = (pago['tipo'] ?? '') as String? ?? '';
         if (tipo == 'efectivo') {
           efectivo += monto;
-        } else if (tipo == 'transferencia') transferencia += monto;
-        else if (tipo == 'otro') otro += monto;
-        else efectivo += monto; // fallback histórico
+        } else if (tipo == 'transferencia')
+          transferencia += monto;
+        else if (tipo == 'otro')
+          otro += monto;
+        else
+          efectivo += monto; // fallback histórico
       } else {
         efectivo += (data['precio'] as num?)?.toDouble() ?? 0.0;
       }
@@ -183,7 +188,8 @@ class _BalanceScreenState extends State<BalanceScreen> {
     if (inicio == null || fin == null) return;
 
     final csv = StringBuffer();
-    csv.writeln('Rango,${DateFormat('dd/MM/yyyy').format(inicio)},${DateFormat('dd/MM/yyyy').format(fin)}');
+    csv.writeln(
+        'Rango,${DateFormat('dd/MM/yyyy').format(inicio)},${DateFormat('dd/MM/yyyy').format(fin)}');
     csv.writeln('Concepto,Valor');
     csv.writeln('Lavados,$totalLavados');
     csv.writeln('Efectivo,${totalEfectivo.toStringAsFixed(2)}');
@@ -191,7 +197,8 @@ class _BalanceScreenState extends State<BalanceScreen> {
     csv.writeln('Otro,${totalOtro.toStringAsFixed(2)}');
     csv.writeln('Ingresos totales,${totalIngresos.toStringAsFixed(2)}');
     csv.writeln('Gastos,${totalGastos.toStringAsFixed(2)}');
-    csv.writeln('Pago a lavadores ${(_porcLav * 100).toStringAsFixed(0)}%,${totalLavadores.toStringAsFixed(2)}');
+    csv.writeln(
+        'Pago a lavadores ${(_porcLav * 100).toStringAsFixed(0)}%,${totalLavadores.toStringAsFixed(2)}');
     csv.writeln('Cierre efectivo,${cierreEfectivo.toStringAsFixed(2)}');
     csv.writeln('Cierre neto,${cierreNeto.toStringAsFixed(2)}');
 
@@ -212,8 +219,8 @@ class _BalanceScreenState extends State<BalanceScreen> {
     final desdeStr = fmtDate(fechaDesde);
     final hastaStr = fmtDate(fechaHasta);
 
-    final scaler =
-        MediaQuery.textScalerOf(context).clamp(minScaleFactor: 0.9, maxScaleFactor: 1.15);
+    final scaler = MediaQuery.textScalerOf(context)
+        .clamp(minScaleFactor: 0.9, maxScaleFactor: 1.15);
 
     return MediaQuery(
       data: MediaQuery.of(context).copyWith(textScaler: scaler),
@@ -277,66 +284,76 @@ class _BalanceScreenState extends State<BalanceScreen> {
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(_radius),
                         boxShadow: const [
-                          BoxShadow(color: Color(0x11000000), blurRadius: 10, offset: Offset(0, 3))
+                          BoxShadow(
+                              color: Color(0x11000000),
+                              blurRadius: 10,
+                              offset: Offset(0, 3))
                         ],
                       ),
                       child: LayoutBuilder(
                         builder: (_, c) {
                           final narrow = c.maxWidth < 560;
-                          final children = [
-                            Expanded(
-                              child: OutlinedButton.icon(
-                                onPressed: _pickDesde,
-                                icon: const Icon(Icons.calendar_month, size: 18),
-                                label: Text('Desde  $desdeStr', overflow: TextOverflow.ellipsis),
-                                style: OutlinedButton.styleFrom(
-                                  side: const BorderSide(color: kPrimary),
-                                  foregroundColor: kPrimary,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                                ),
+                          final desdeButton = OutlinedButton.icon(
+                            onPressed: _pickDesde,
+                            icon: const Icon(Icons.calendar_month, size: 18),
+                            label: Text('Desde  $desdeStr',
+                                overflow: TextOverflow.ellipsis),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: kPrimary),
+                              foregroundColor: kPrimary,
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10)),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 10),
+                            ),
+                          );
+                          final hastaButton = OutlinedButton.icon(
+                            onPressed: _pickHasta,
+                            icon: const Icon(Icons.calendar_month, size: 18),
+                            label: Text('Hasta  $hastaStr',
+                                overflow: TextOverflow.ellipsis),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: kPrimary),
+                              foregroundColor: kPrimary,
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10)),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 10),
+                            ),
+                          );
+                          final exportButton = SizedBox(
+                            width: narrow ? double.infinity : 160,
+                            child: ElevatedButton.icon(
+                              onPressed: _exportarCSV,
+                              icon: const Icon(Icons.file_download),
+                              label: const Text('Exportar CSV'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: kPrimary,
+                                foregroundColor: Colors.white,
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10)),
                               ),
                             ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: OutlinedButton.icon(
-                                onPressed: _pickHasta,
-                                icon: const Icon(Icons.calendar_month, size: 18),
-                                label: Text('Hasta  $hastaStr', overflow: TextOverflow.ellipsis),
-                                style: OutlinedButton.styleFrom(
-                                  side: const BorderSide(color: kPrimary),
-                                  foregroundColor: kPrimary,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            SizedBox(
-                              width: 160,
-                              child: ElevatedButton.icon(
-                                onPressed: _exportarCSV,
-                                icon: const Icon(Icons.file_download),
-                                label: const Text('Exportar CSV'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: kPrimary,
-                                  foregroundColor: Colors.white,
-                                  elevation: 0,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                ),
-                              ),
-                            ),
-                          ];
+                          );
 
-                          if (!narrow) return Row(children: children);
+                          if (!narrow) {
+                            return Row(children: [
+                              Expanded(child: desdeButton),
+                              const SizedBox(width: 8),
+                              Expanded(child: hastaButton),
+                              const SizedBox(width: 8),
+                              exportButton,
+                            ]);
+                          }
                           return Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              children[0],
+                              desdeButton,
                               const SizedBox(height: 8),
-                              children[2],
+                              hastaButton,
                               const SizedBox(height: 8),
-                              children[4],
+                              exportButton,
                             ],
                           );
                         },
@@ -346,59 +363,75 @@ class _BalanceScreenState extends State<BalanceScreen> {
 
                     // Card resumen
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 18),
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(_radius),
                         boxShadow: const [
-                          BoxShadow(color: Color(0x11000000), blurRadius: 10, offset: Offset(0, 3))
+                          BoxShadow(
+                              color: Color(0x11000000),
+                              blurRadius: 10,
+                              offset: Offset(0, 3))
                         ],
                       ),
                       child: Column(
                         children: [
-                          _row('Lavados', Text('$totalLavados', style: _numStyle)),
-                          _row('Efectivo', Text(fmt(totalEfectivo), style: _numStyle)),
-                          _row('Transferencia', Text(fmt(totalTransferencia), style: _numStyle)),
+                          _row('Lavados',
+                              Text('$totalLavados', style: _numStyle)),
+                          _row('Efectivo',
+                              Text(fmt(totalEfectivo), style: _numStyle)),
+                          _row('Transferencia',
+                              Text(fmt(totalTransferencia), style: _numStyle)),
                           _row('Otros', Text(fmt(totalOtro), style: _numStyle)),
                           _row(
                             'Ingresos totales',
-                            Text(fmt(totalIngresos), style: _numStyle.copyWith(fontWeight: FontWeight.w800)),
+                            Text(fmt(totalIngresos),
+                                style: _numStyle.copyWith(
+                                    fontWeight: FontWeight.w800)),
                           ),
                           const SizedBox(height: 10),
                           const Divider(height: 24, color: Color(0xFFEAECEF)),
 
                           // "resumen" a la derecha del total de gastos
                           Padding(
-  padding: const EdgeInsets.symmetric(vertical: 6),
-  child: Row(
-    children: [
-      const Text('Gastos', style: TextStyle(fontSize: 16)),
-      const SizedBox(width: 8),
-      TextButton.icon(
-        onPressed: () {
-          final inicio = DateTime(fechaDesde!.year, fechaDesde!.month, fechaDesde!.day);
-          final fin = DateTime(fechaHasta!.year, fechaHasta!.month, fechaHasta!.day + 1);
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => ResumenGastosScreen(
-                initialRange: DateTimeRange(start: inicio, end: fin),
-              ),
-            ),
-          );
-        },
-        icon: const Icon(Icons.receipt_long, size: 18),
-        label: const Text('resumen', style: TextStyle(fontSize: 12)),
-        style: TextButton.styleFrom(foregroundColor: kPrimary),
-      ),
-      const Spacer(),
-      DefaultTextStyle.merge(
-        style: _numStyle,
-        child: Text(fmt(totalGastos)),
-      ),
-    ],
-  ),
-),
+                            padding: const EdgeInsets.symmetric(vertical: 6),
+                            child: Row(
+                              children: [
+                                const Text('Gastos',
+                                    style: TextStyle(fontSize: 16)),
+                                const SizedBox(width: 8),
+                                TextButton.icon(
+                                  onPressed: () {
+                                    final inicio = DateTime(fechaDesde!.year,
+                                        fechaDesde!.month, fechaDesde!.day);
+                                    final fin = DateTime(fechaHasta!.year,
+                                        fechaHasta!.month, fechaHasta!.day + 1);
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => ResumenGastosScreen(
+                                          initialRange: DateTimeRange(
+                                              start: inicio, end: fin),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  icon:
+                                      const Icon(Icons.receipt_long, size: 18),
+                                  label: const Text('resumen',
+                                      style: TextStyle(fontSize: 12)),
+                                  style: TextButton.styleFrom(
+                                      foregroundColor: kPrimary),
+                                ),
+                                const Spacer(),
+                                DefaultTextStyle.merge(
+                                  style: _numStyle,
+                                  child: Text(fmt(totalGastos)),
+                                ),
+                              ],
+                            ),
+                          ),
 
                           _row(
                             'Pago a lavadores (${(_porcLav * 100).toStringAsFixed(0)}%)',
@@ -408,7 +441,8 @@ class _BalanceScreenState extends State<BalanceScreen> {
                             'Cierre efectivo',
                             Text(
                               fmt(cierreEfectivo),
-                              style: _numStyle.copyWith(fontWeight: FontWeight.w800),
+                              style: _numStyle.copyWith(
+                                  fontWeight: FontWeight.w800),
                             ),
                           ),
                           const SizedBox(height: 12),
@@ -462,9 +496,3 @@ class _BalanceScreenState extends State<BalanceScreen> {
     );
   }
 }
-
-
-
-
-
-
