@@ -49,6 +49,54 @@
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
-  <script src="flutter_bootstrap.js" defer></script>
+  <script>
+    (function () {
+      const reloadKey = 'adminlav-runtime-cache-cleared-v1';
+
+      function loadFlutter() {
+        const script = document.createElement('script');
+        script.src = 'flutter_bootstrap.js?v=' + Date.now();
+        script.defer = true;
+        document.body.appendChild(script);
+      }
+
+      async function clearStaleRuntime() {
+        let cleared = false;
+
+        if ('serviceWorker' in navigator) {
+          const registrations = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(registrations.map(function (registration) {
+            cleared = true;
+            return registration.unregister();
+          }));
+        }
+
+        if ('caches' in window) {
+          const keys = await caches.keys();
+          await Promise.all(keys.map(function (key) {
+            cleared = true;
+            return caches.delete(key);
+          }));
+        }
+
+        return cleared;
+      }
+
+      clearStaleRuntime()
+        .then(function (cleared) {
+          if (cleared && sessionStorage.getItem(reloadKey) !== 'done') {
+            sessionStorage.setItem(reloadKey, 'done');
+            window.location.reload();
+            return;
+          }
+          sessionStorage.removeItem(reloadKey);
+          loadFlutter();
+        })
+        .catch(function (error) {
+          console.warn('Could not clear old app cache:', error);
+          loadFlutter();
+        });
+    })();
+  </script>
 </body>
 </html>
