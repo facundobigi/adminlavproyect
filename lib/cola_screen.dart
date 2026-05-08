@@ -20,10 +20,15 @@ class _ColaScreenState extends State<ColaScreen> {
   static const double _radius = 16;
 
   Timer? _tick;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _serviciosSub;
   DateTime _now = DateTime.now();
 
   final Map<String, int> _durByName = {};
   final Set<String> _busy = {};
+
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _colaStream;
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _enLavadoStream;
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _listosStream;
 
   CollectionReference<Map<String, dynamic>> get _ordenesCol =>
       FirebaseFirestore.instance
@@ -43,6 +48,13 @@ class _ColaScreenState extends State<ColaScreen> {
     if (mounted) setState(() {});
     try {
       await f();
+    } catch (e, st) {
+      debugPrint('Error operando orden $id: $e\n$st');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_errorOperacion(e))),
+        );
+      }
     } finally {
       _busy.remove(id);
       if (mounted) setState(() {});
@@ -75,11 +87,44 @@ class _ColaScreenState extends State<ColaScreen> {
     return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
+  String _errorOperacion(Object e) {
+    if (e is FirebaseException) {
+      switch (e.code) {
+        case 'resource-exhausted':
+          return 'Firestore sin cuota disponible. Revisá el uso o reintentá más tarde.';
+        case 'permission-denied':
+          return 'No tenés permiso para hacer esta acción.';
+        case 'unavailable':
+          return 'No hay conexión con Firestore. Reintentá.';
+      }
+    }
+    return 'No se pudo completar la acción, reintentá';
+  }
+
+  void _showSnack(String text) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+  }
+
   @override
   void initState() {
     super.initState();
 
-    _serviciosCol.where('activo', isEqualTo: true).snapshots().listen((s) {
+    _colaStream = _ordenesCol
+        .where('estado', isEqualTo: 'en_cola')
+        .orderBy('created_at', descending: true)
+        .snapshots();
+    _enLavadoStream = _ordenesCol
+        .where('estado', isEqualTo: 'en_lavado')
+        .orderBy('started_at', descending: true)
+        .snapshots();
+    _listosStream = _ordenesCol
+        .where('estado', isEqualTo: 'listo')
+        .orderBy('finished_at', descending: true)
+        .snapshots();
+
+    _serviciosSub =
+        _serviciosCol.where('activo', isEqualTo: true).snapshots().listen((s) {
       _durByName
         ..clear()
         ..addAll({
@@ -99,29 +144,22 @@ class _ColaScreenState extends State<ColaScreen> {
   @override
   void dispose() {
     _tick?.cancel();
+    _serviciosSub?.cancel();
     super.dispose();
   }
 
   Future<void> _iniciarOrden(
       QueryDocumentSnapshot<Map<String, dynamic>> ordenDoc) async {
-    final ref = ordenDoc.reference;
-    await FirebaseFirestore.instance.runTransaction((t) async {
-      final snap = await t.get(ref);
-      final x = snap.data();
-      if (x == null || x['estado'] != 'en_cola') {
-        throw Exception('NO_EN_COLA');
-      }
-      t.update(ref, {
-        'estado': 'en_lavado',
-        'started_at': FieldValue.serverTimestamp(),
-        'puesto': null,
-      });
-    }).catchError((_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No se pudo iniciar, reintentá')),
-        );
-      }
+    final x = ordenDoc.data();
+    if (x['estado'] != 'en_cola') {
+      _showSnack('La orden ya no está en cola.');
+      return;
+    }
+
+    await ordenDoc.reference.update({
+      'estado': 'en_lavado',
+      'started_at': FieldValue.serverTimestamp(),
+      'puesto': null,
     });
   }
 
@@ -372,16 +410,6 @@ class _ColaScreenState extends State<ColaScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final colaQ = _ordenesCol
-        .where('estado', isEqualTo: 'en_cola')
-        .orderBy('created_at', descending: true);
-    final enLavQ = _ordenesCol
-        .where('estado', isEqualTo: 'en_lavado')
-        .orderBy('started_at', descending: true);
-    final listosQ = _ordenesCol
-        .where('estado', isEqualTo: 'listo')
-        .orderBy('finished_at', descending: true);
-
     final textScaler = MediaQuery.textScalerOf(context)
         .clamp(minScaleFactor: 0.9, maxScaleFactor: 1.2);
 
@@ -450,13 +478,13 @@ class _ColaScreenState extends State<ColaScreen> {
               }
 
               final enColaW = section(
-                  'En cola', Icons.hourglass_bottom, colaQ.snapshots(),
+                  'En cola', Icons.hourglass_bottom, _colaStream,
                   empty: 'Sin autos en cola');
               final enLavW = section(
-                  'En lavado', Icons.local_car_wash, enLavQ.snapshots(),
+                  'En lavado', Icons.local_car_wash, _enLavadoStream,
                   empty: '—');
               final listosW = section(
-                  'Para retirar', Icons.check_circle, listosQ.snapshots(),
+                  'Para retirar', Icons.check_circle, _listosStream,
                   empty: '—');
 
               return Align(
