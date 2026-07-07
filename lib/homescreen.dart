@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/services.dart';
 
 import 'registrogasto.dart';
 import 'balance_screen.dart';
@@ -31,8 +32,15 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // ======== Estado de UI / métricas ========
   DateTime today = DateTime.now();
+  TimeOfDay _horaDesde = const TimeOfDay(hour: 0, minute: 0);
+  TimeOfDay _horaHasta = const TimeOfDay(hour: 23, minute: 59);
+  final _lavadoDesdeCtrl = TextEditingController();
+  final _lavadoHastaCtrl = TextEditingController();
+  int? _lavadoDesde;
+  int? _lavadoHasta;
 
   int totalLavados = 0;
+  double valorLavados = 0;
   double totalEfectivo = 0;
   double totalTransferencia = 0;
   double totalOtro = 0;
@@ -53,6 +61,50 @@ class _HomeScreenState extends State<HomeScreen> {
   String fmt(num v) {
     final s = _money.format(v.abs());
     return v < 0 ? '-$s' : s;
+  }
+
+  int _timeMinutes(TimeOfDay t) => t.hour * 60 + t.minute;
+
+  String _fmtHora(TimeOfDay t) =>
+      '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+
+  DateTime _inicioResumen() => DateTime(
+        today.year,
+        today.month,
+        today.day,
+        _horaDesde.hour,
+        _horaDesde.minute,
+      );
+
+  DateTime _finResumen() => DateTime(
+        today.year,
+        today.month,
+        today.day,
+        _horaHasta.hour,
+        _horaHasta.minute,
+      ).add(const Duration(minutes: 1));
+
+  bool get _esDiaCompleto =>
+      _timeMinutes(_horaDesde) == 0 && _timeMinutes(_horaHasta) == 1439;
+
+  bool get _hayFiltroLavado => _lavadoDesde != null || _lavadoHasta != null;
+
+  bool _matchesLavadoNumero(Map<String, dynamic> data) {
+    if (!_hayFiltroLavado) return true;
+    final n = (data['lavado_numero'] as num?)?.toInt();
+    if (n == null) return false;
+    if (_lavadoDesde != null && n < _lavadoDesde!) return false;
+    if (_lavadoHasta != null && n > _lavadoHasta!) return false;
+    return true;
+  }
+
+  double _valorOrden(Map<String, dynamic> data) {
+    final pago = data['pago'];
+    final pagoMonto = pago is Map ? (pago['monto'] as num?)?.toDouble() : null;
+    return (data['precio_snapshot'] as num?)?.toDouble() ??
+        (data['precio'] as num?)?.toDouble() ??
+        pagoMonto ??
+        0.0;
   }
 
   // Paleta
@@ -85,6 +137,13 @@ class _HomeScreenState extends State<HomeScreen> {
     _cargarConfig().then((_) => cargarResumenDelDia());
   }
 
+  @override
+  void dispose() {
+    _lavadoDesdeCtrl.dispose();
+    _lavadoHastaCtrl.dispose();
+    super.dispose();
+  }
+
   Future<void> _cargarConfig() async {
     final d = await _userRef.collection('config').doc('app').get();
     final p = (d.data()?['porcentaje_lavadores'] as num?)?.toDouble();
@@ -94,17 +153,19 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> cargarResumenDelDia() async {
     setState(() => cargando = true);
 
-    final inicioDia = DateTime(today.year, today.month, today.day);
-    final finDia = inicioDia.add(const Duration(days: 1));
+    final inicioResumen = _inicioResumen();
+    final finResumen = _finResumen();
 
-    final qs = await _userRef
+    final cobradosQs = await _userRef
         .collection('ordenes')
-        .where('delivered_at', isGreaterThanOrEqualTo: inicioDia)
-        .where('delivered_at', isLessThan: finDia)
+        .where('delivered_at', isGreaterThanOrEqualTo: inicioResumen)
+        .where('delivered_at', isLessThan: finResumen)
         .get();
+    final cobradosDocs =
+        cobradosQs.docs.where((d) => _matchesLavadoNumero(d.data())).toList();
 
     double efectivo = 0, transferencia = 0, otro = 0;
-    for (final d in qs.docs) {
+    for (final d in cobradosDocs) {
       final data = d.data();
       final pagoRaw = data['pago'];
       if (pagoRaw is Map) {
@@ -125,10 +186,22 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     }
 
+    final lavadosQs = await _userRef
+        .collection('ordenes')
+        .where('finished_at', isGreaterThanOrEqualTo: inicioResumen)
+        .where('finished_at', isLessThan: finResumen)
+        .get();
+    final lavadosDocs =
+        lavadosQs.docs.where((d) => _matchesLavadoNumero(d.data())).toList();
+    final valorProduccion = lavadosDocs.fold<double>(
+      0,
+      (s, d) => s + _valorOrden(d.data()),
+    );
+
     final gastos = await _userRef
         .collection('gastos')
-        .where('fecha', isGreaterThanOrEqualTo: inicioDia)
-        .where('fecha', isLessThan: finDia)
+        .where('fecha', isGreaterThanOrEqualTo: inicioResumen)
+        .where('fecha', isLessThan: finResumen)
         .get();
     final gast = gastos.docs.fold<double>(0, (s, d) {
       final data = d.data();
@@ -158,13 +231,14 @@ class _HomeScreenState extends State<HomeScreen> {
     final ingresos = efectivo + transferencia + otro;
 
     setState(() {
-      totalLavados = qs.size;
+      totalLavados = lavadosDocs.length;
+      valorLavados = valorProduccion;
       totalEfectivo = efectivo;
       totalTransferencia = transferencia;
       totalOtro = otro;
       ingresosTotales = ingresos;
       totalGastos = gast;
-      pagoLavadores = ingresosTotales * porcLav;
+      pagoLavadores = valorLavados * porcLav;
       cierreEfectivoCaja = totalEfectivo - totalGastos - pagoLavadores;
       cierreEfectivo = ingresosTotales - totalGastos - pagoLavadores;
 
@@ -208,7 +282,7 @@ class _HomeScreenState extends State<HomeScreen> {
         }, SetOptions(merge: true));
         setState(() {
           porcLav = p;
-          pagoLavadores = ingresosTotales * porcLav;
+          pagoLavadores = valorLavados * porcLav;
           cierreEfectivoCaja = totalEfectivo - totalGastos - pagoLavadores;
           cierreEfectivo = ingresosTotales - totalGastos - pagoLavadores;
         });
@@ -220,6 +294,95 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     }
     ctrl.dispose();
+  }
+
+  Future<void> _pickHoraDesde() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: _horaDesde,
+    );
+    if (!mounted || picked == null) return;
+
+    final desdeMin = _timeMinutes(picked);
+    final hastaExclusiveMin = _timeMinutes(_horaHasta) + 1;
+    if (desdeMin >= hastaExclusiveMin) {
+      _showSnack('La hora desde debe ser menor que hasta');
+      return;
+    }
+
+    setState(() => _horaDesde = picked);
+    cargarResumenDelDia();
+  }
+
+  Future<void> _pickHoraHasta() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: _horaHasta,
+    );
+    if (!mounted || picked == null) return;
+
+    final hastaExclusiveMin = _timeMinutes(picked) + 1;
+    final desdeMin = _timeMinutes(_horaDesde);
+    if (hastaExclusiveMin <= desdeMin) {
+      _showSnack('La hora hasta debe ser mayor que desde');
+      return;
+    }
+
+    setState(() => _horaHasta = picked);
+    cargarResumenDelDia();
+  }
+
+  void _resetHorario() {
+    if (_esDiaCompleto) return;
+    setState(() {
+      _horaDesde = const TimeOfDay(hour: 0, minute: 0);
+      _horaHasta = const TimeOfDay(hour: 23, minute: 59);
+    });
+    cargarResumenDelDia();
+  }
+
+  void _aplicarLavadoFiltro() {
+    final desdeText = _lavadoDesdeCtrl.text.trim();
+    final hastaText = _lavadoHastaCtrl.text.trim();
+    final desde = desdeText.isEmpty ? null : int.tryParse(desdeText);
+    final hasta = hastaText.isEmpty ? null : int.tryParse(hastaText);
+
+    if ((desdeText.isNotEmpty && (desde == null || desde <= 0)) ||
+        (hastaText.isNotEmpty && (hasta == null || hasta <= 0))) {
+      _showSnack('Ingresá números de lavado válidos');
+      return;
+    }
+
+    if (desde != null && hasta != null && desde > hasta) {
+      _showSnack('El lavado desde no puede ser mayor que hasta');
+      return;
+    }
+
+    setState(() {
+      _lavadoDesde = desde;
+      _lavadoHasta = hasta;
+    });
+    cargarResumenDelDia();
+  }
+
+  void _resetLavadoFiltro() {
+    if (!_hayFiltroLavado &&
+        _lavadoDesdeCtrl.text.isEmpty &&
+        _lavadoHastaCtrl.text.isEmpty) {
+      return;
+    }
+    setState(() {
+      _lavadoDesde = null;
+      _lavadoHasta = null;
+      _lavadoDesdeCtrl.clear();
+      _lavadoHastaCtrl.clear();
+    });
+    cargarResumenDelDia();
+  }
+
+  void _showSnack(String text) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
   }
 
   void _go(Widget page) {
@@ -436,6 +599,186 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // ===== Panel =====
+  Widget _resumenFiltros({required bool compact}) {
+    final desdeButton = _horaButton(
+      label: 'Desde',
+      value: _fmtHora(_horaDesde),
+      onPressed: _pickHoraDesde,
+    );
+    final hastaButton = _horaButton(
+      label: 'Hasta',
+      value: _fmtHora(_horaHasta),
+      onPressed: _pickHoraHasta,
+    );
+    final resetHorarioButton = _compactIconButton(
+      tooltip: 'Dia completo',
+      onPressed: _esDiaCompleto ? null : _resetHorario,
+      icon: const Icon(Icons.restart_alt),
+    );
+    final desdeField = _lavadoField(
+      controller: _lavadoDesdeCtrl,
+      label: 'Desde #',
+      onSubmitted: (_) => _aplicarLavadoFiltro(),
+    );
+    final hastaField = _lavadoField(
+      controller: _lavadoHastaCtrl,
+      label: 'Hasta #',
+      onSubmitted: (_) => _aplicarLavadoFiltro(),
+    );
+    final applyButton = _compactIconButton(
+      tooltip: 'Aplicar filtro',
+      onPressed: _aplicarLavadoFiltro,
+      icon: const Icon(Icons.check_circle),
+    );
+    final resetLavadoButton = _compactIconButton(
+      tooltip: 'Limpiar filtro',
+      onPressed: _hayFiltroLavado ? _resetLavadoFiltro : null,
+      icon: const Icon(Icons.clear),
+    );
+
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: 10,
+        vertical: compact ? 6 : 8,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(_radius),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x11000000),
+            blurRadius: 10,
+            offset: Offset(0, 3),
+          )
+        ],
+      ),
+      child: LayoutBuilder(
+        builder: (_, c) {
+          final horarioRow = Row(
+            children: [
+              const Icon(Icons.schedule, color: kPrimary, size: 20),
+              const SizedBox(width: 8),
+              Expanded(child: desdeButton),
+              const SizedBox(width: 6),
+              Expanded(child: hastaButton),
+              const SizedBox(width: 2),
+              resetHorarioButton,
+            ],
+          );
+          final lavadoRow = Row(
+            children: [
+              const Icon(Icons.format_list_numbered, color: kPrimary, size: 20),
+              const SizedBox(width: 8),
+              Expanded(child: desdeField),
+              const SizedBox(width: 6),
+              Expanded(child: hastaField),
+              const SizedBox(width: 2),
+              applyButton,
+              resetLavadoButton,
+            ],
+          );
+
+          if (c.maxWidth < 620) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                horarioRow,
+                SizedBox(height: compact ? 5 : 6),
+                lavadoRow,
+              ],
+            );
+          }
+
+          return Row(
+            children: [
+              const Icon(Icons.schedule, color: kPrimary, size: 20),
+              const SizedBox(width: 8),
+              SizedBox(width: 122, child: desdeButton),
+              const SizedBox(width: 6),
+              SizedBox(width: 122, child: hastaButton),
+              resetHorarioButton,
+              const SizedBox(width: 10),
+              const Icon(Icons.format_list_numbered, color: kPrimary, size: 20),
+              const SizedBox(width: 8),
+              SizedBox(width: 88, child: desdeField),
+              const SizedBox(width: 6),
+              SizedBox(width: 88, child: hastaField),
+              applyButton,
+              resetLavadoButton,
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _compactIconButton({
+    required String tooltip,
+    required VoidCallback? onPressed,
+    required Widget icon,
+  }) {
+    return IconButton(
+      tooltip: tooltip,
+      onPressed: onPressed,
+      icon: icon,
+      color: kPrimary,
+      visualDensity: VisualDensity.compact,
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints.tightFor(width: 34, height: 34),
+      iconSize: 20,
+    );
+  }
+
+  Widget _horaButton({
+    required String label,
+    required String value,
+    required VoidCallback onPressed,
+  }) {
+    return SizedBox(
+      height: 38,
+      child: OutlinedButton.icon(
+        onPressed: onPressed,
+        icon: const Icon(Icons.access_time, size: 17),
+        label: Text(
+          '$label $value',
+          overflow: TextOverflow.ellipsis,
+        ),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: kPrimary,
+          side: const BorderSide(color: kPrimarySoft, width: 1.4),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+          visualDensity: VisualDensity.compact,
+        ),
+      ),
+    );
+  }
+
+  Widget _lavadoField({
+    required TextEditingController controller,
+    required String label,
+    required ValueChanged<String> onSubmitted,
+  }) {
+    return SizedBox(
+      height: 38,
+      child: TextField(
+        controller: controller,
+        keyboardType: TextInputType.number,
+        textInputAction: TextInputAction.done,
+        onSubmitted: onSubmitted,
+        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+        decoration: InputDecoration(
+          hintText: label,
+          isDense: true,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        ),
+      ),
+    );
+  }
+
   Widget _panel(String fechaStr, {required bool compact}) {
     final double headerH = compact ? 48.0 : 56.0;
     final bool disableNav = isOperator;
@@ -548,6 +891,9 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         SizedBox(height: compact ? 10 : 14),
 
+        _resumenFiltros(compact: compact),
+        SizedBox(height: compact ? 8 : 10),
+
         // Card resumen
         Container(
           padding: EdgeInsets.symmetric(
@@ -577,6 +923,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
               ),
+              _row('Valor lavados', _animNum(fmt(valorLavados))),
               _row('Efectivo', _animNum(fmt(totalEfectivo))),
               _row('Transferencia', _animNum(fmt(totalTransferencia))),
               _row('Otros', _animNum(fmt(totalOtro))),

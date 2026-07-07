@@ -55,7 +55,18 @@ service cloud.firestore {
         && request.resource.data.estado == 'listo'
         && request.resource.data.finished_at == request.time
         && request.resource.data.puesto == null
-        && changedOnly(['estado', 'finished_at', 'puesto']);
+        && request.resource.data.lavado_contado_at == request.time
+        && request.resource.data.lavado_fecha_key is string
+        && request.resource.data.lavado_numero is number
+        && request.resource.data.lavado_numero > 0
+        && changedOnly([
+          'estado',
+          'finished_at',
+          'puesto',
+          'lavado_contado_at',
+          'lavado_fecha_key',
+          'lavado_numero'
+        ]);
     }
 
     function validOrdenDeliver() {
@@ -76,6 +87,16 @@ service cloud.firestore {
           || validOrdenFinish()
           || validOrdenDeliver()
         );
+    }
+
+    function validLavadoCounter(tenantId, docId) {
+      return inTenant(tenantId)
+        && docId.matches('^lavados_[0-9]{8}$')
+        && request.resource.data.keys().hasOnly(['ultimo', 'fecha_key', 'updated_at'])
+        && request.resource.data.ultimo is number
+        && request.resource.data.ultimo > 0
+        && request.resource.data.fecha_key is string
+        && request.resource.data.updated_at == request.time;
     }
 
     match /admins/{uid} {
@@ -111,6 +132,14 @@ service cloud.firestore {
       match /gastos/{docId} {
         allow read, create: if inTenant(tenantId);
         allow update, delete: if isAdmin(tenantId);
+      }
+
+      match /contadores/{docId} {
+        allow read: if inTenant(tenantId);
+        allow create: if validLavadoCounter(tenantId, docId);
+        allow update: if validLavadoCounter(tenantId, docId)
+          && request.resource.data.ultimo >= resource.data.ultimo;
+        allow delete: if false;
       }
 
       match /{document=**} {

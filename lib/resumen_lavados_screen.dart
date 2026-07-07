@@ -70,14 +70,13 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
   // ===== Consultas =====
   Query<Map<String, dynamic>> _buildQuery() {
     Query<Map<String, dynamic>> q = _ordenesCol
-        .where('estado', isEqualTo: 'entregado')
-        .where('delivered_at', isGreaterThanOrEqualTo: _range.start)
-        .where('delivered_at', isLessThan: _range.end);
+        .where('finished_at', isGreaterThanOrEqualTo: _range.start)
+        .where('finished_at', isLessThan: _range.end);
 
     if (_pago != 'todos') q = q.where('pago.tipo', isEqualTo: _pago);
     if (_servicio != 'todos') q = q.where('servicio', isEqualTo: _servicio);
 
-    return q.orderBy('delivered_at', descending: true);
+    return q.orderBy('finished_at', descending: true);
   }
 
   Future<void> _cargar() async {
@@ -109,6 +108,7 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
           (cli['nombre_completo'] ?? '').toString(),
           (cli['telefono'] ?? '').toString(),
           (x['patente'] ?? '').toString(),
+          (x['lavado_numero'] ?? '').toString(),
           (x['vehiculo'] ?? '').toString(),
           (x['servicio'] ?? '').toString(),
         ].join(' ').toLowerCase();
@@ -131,12 +131,11 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
       final x = d.data();
       final pago = (x['pago'] ?? {}) as Map<String, dynamic>;
       final tipo = (pago['tipo'] ?? '') as String?;
-      final monto = (pago['monto'] as num?)?.toDouble() ??
-          (x['precio_snapshot'] as num?)?.toDouble() ??
-          0.0;
-      kIngresos += monto;
-      if (tipo == 'efectivo') kEfec += monto;
-      if (tipo == 'transferencia') kTransf += monto;
+      final valorLavado = _valorOrden(x);
+      final montoPago = (pago['monto'] as num?)?.toDouble() ?? 0.0;
+      kIngresos += valorLavado;
+      if (tipo == 'efectivo') kEfec += montoPago;
+      if (tipo == 'transferencia') kTransf += montoPago;
 
       final created = _toDate(x['created_at']);
       final started = _toDate(x['started_at']);
@@ -164,6 +163,15 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
     if (v is Timestamp) return v.toDate();
     if (v is DateTime) return v;
     return null;
+  }
+
+  double _valorOrden(Map<String, dynamic> data) {
+    final pago = data['pago'];
+    final pagoMonto = pago is Map ? (pago['monto'] as num?)?.toDouble() : null;
+    return (data['precio_snapshot'] as num?)?.toDouble() ??
+        (data['precio'] as num?)?.toDouble() ??
+        pagoMonto ??
+        0.0;
   }
 
   // ===== UI =====
@@ -204,7 +212,7 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
                           children: [
                             Icon(Icons.list_alt, color: Colors.white),
                             SizedBox(width: 8),
-                            Text('Entregas',
+                            Text('Lavados',
                                 style: TextStyle(
                                     color: Colors.white,
                                     fontSize: 16,
@@ -455,7 +463,7 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
 
     final items = <Widget>[
       card('Lavados', '$kLavados', Icons.local_car_wash),
-      card('Ingresos', _money.format(kIngresos), Icons.payments),
+      card('Valor lavados', _money.format(kIngresos), Icons.payments),
       card('Efectivo', _money.format(kEfec), Icons.attach_money),
       card('Transferencia', _money.format(kTransf), Icons.swap_horiz),
       card('Espera prom.', dFmt(kEsperaProm), Icons.hourglass_bottom),
@@ -503,14 +511,12 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
     final veh = (x['vehiculo'] ?? '').toString();
     final patente = (x['patente'] ?? '').toString();
     final srv = (x['servicio'] ?? '').toString();
+    final lavadoNumero = (x['lavado_numero'] as num?)?.toInt();
 
     final pago = (x['pago'] ?? {}) as Map<String, dynamic>;
     final tipo = (pago['tipo'] ?? '').toString();
-    final monto = (pago['monto'] as num?)?.toDouble() ??
-        (x['precio_snapshot'] as num?)?.toDouble() ??
-        0.0;
+    final monto = _valorOrden(x);
 
-    final delivered = _toDate(x['delivered_at']);
     final started = _toDate(x['started_at']);
     final finished = _toDate(x['finished_at']);
     final created = _toDate(x['created_at']);
@@ -554,9 +560,9 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
                         Icon(Icons.access_time, size: 14, color: kPrimary),
                         const SizedBox(width: 4),
                         Text(
-                          delivered == null
+                          finished == null
                               ? '-'
-                              : DateFormat('dd/MM HH:mm').format(delivered),
+                              : DateFormat('dd/MM HH:mm').format(finished),
                           style: const TextStyle(
                               fontSize: 12, color: Colors.black87),
                         ),
@@ -598,6 +604,8 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
+                  _lavadoNumeroChip(lavadoNumero),
+                  const SizedBox(height: 4),
                   Text(_money.format(monto),
                       style: const TextStyle(
                           fontSize: 16, fontWeight: FontWeight.w800)),
@@ -638,6 +646,25 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
       child: Text(t,
           style:
               TextStyle(fontSize: 12, color: c, fontWeight: FontWeight.w600)),
+    );
+  }
+
+  Widget _lavadoNumeroChip(int? n) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: kPrimary.withValues(alpha: .08),
+        border: Border.all(color: kPrimary.withValues(alpha: .20)),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        n == null ? '#-' : '#$n',
+        style: const TextStyle(
+          fontSize: 12,
+          color: kPrimary,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
     );
   }
 
@@ -682,6 +709,7 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
     final x = d.data();
     final cli = (x['cliente_snapshot'] ?? {}) as Map<String, dynamic>;
     final pago = (x['pago'] ?? {}) as Map<String, dynamic>;
+    final lavadoNumero = (x['lavado_numero'] as num?)?.toInt();
 
     final nombre = (cli['nombre'] ?? '').toString();
     final apellido = (cli['apellido'] ?? '').toString();
@@ -702,15 +730,12 @@ class _ResumenLavadosScreenState extends State<ResumenLavadosScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              _dl('Nro. lavado', lavadoNumero == null ? '-' : '#$lavadoNumero'),
               _dl('Teléfono', (cli['telefono'] ?? '—').toString()),
               _dl('Vehículo', (x['vehiculo'] ?? '—').toString()),
               _dl('Patente', (x['patente'] ?? '—').toString()),
               _dl('Servicio', (x['servicio'] ?? '—').toString()),
-              _dl(
-                  'Monto',
-                  _money.format((pago['monto'] as num?) ??
-                      (x['precio_snapshot'] as num?) ??
-                      0)),
+              _dl('Monto', _money.format(_valorOrden(x))),
               _dl('Medio de pago', (pago['tipo'] ?? '—').toString()),
             ],
           ),

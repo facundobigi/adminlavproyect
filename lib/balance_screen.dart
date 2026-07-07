@@ -59,6 +59,7 @@ class _BalanceScreenState extends State<BalanceScreen> {
   DateTime? fechaHasta;
 
   int totalLavados = 0;
+  double valorLavados = 0;
   double totalEfectivo = 0;
   double totalTransferencia = 0;
   double totalOtro = 0;
@@ -83,6 +84,15 @@ class _BalanceScreenState extends State<BalanceScreen> {
     final d = await _userRef.collection('config').doc('app').get();
     final p = (d.data()?['porcentaje_lavadores'] as num?)?.toDouble();
     if (p != null && p > 0 && p < 1) _porcLav = p;
+  }
+
+  double _valorOrden(Map<String, dynamic> data) {
+    final pago = data['pago'];
+    final pagoMonto = pago is Map ? (pago['monto'] as num?)?.toDouble() : null;
+    return (data['precio_snapshot'] as num?)?.toDouble() ??
+        (data['precio'] as num?)?.toDouble() ??
+        pagoMonto ??
+        0.0;
   }
 
   Future<void> cargarBalance() async {
@@ -118,6 +128,17 @@ class _BalanceScreenState extends State<BalanceScreen> {
       }
     }
 
+    final lavados = await _userRef
+        .collection('ordenes')
+        .where('finished_at', isGreaterThanOrEqualTo: inicio)
+        .where('finished_at', isLessThan: fin)
+        .get();
+
+    final valorProduccion = lavados.docs.fold<double>(
+      0,
+      (s, d) => s + _valorOrden(d.data()),
+    );
+
     final gastos = await _userRef
         .collection('gastos')
         .where('fecha', isGreaterThanOrEqualTo: inicio)
@@ -137,13 +158,14 @@ class _BalanceScreenState extends State<BalanceScreen> {
     }
 
     final ingresos = efectivo + transferencia + otro;
-    final pagoLav = ingresos * _porcLav;
+    final pagoLav = valorProduccion * _porcLav;
     final cierre = ingresos - gastoTotal - pagoLav;
     final cierreCash = efectivo - gastoNoTransfer - pagoLav;
 
     if (!mounted) return;
     setState(() {
-      totalLavados = qs.size;
+      totalLavados = lavados.size;
+      valorLavados = valorProduccion;
       totalEfectivo = efectivo;
       totalTransferencia = transferencia;
       totalOtro = otro;
@@ -192,6 +214,7 @@ class _BalanceScreenState extends State<BalanceScreen> {
         'Rango,${DateFormat('dd/MM/yyyy').format(inicio)},${DateFormat('dd/MM/yyyy').format(fin)}');
     csv.writeln('Concepto,Valor');
     csv.writeln('Lavados,$totalLavados');
+    csv.writeln('Valor lavados,${valorLavados.toStringAsFixed(2)}');
     csv.writeln('Efectivo,${totalEfectivo.toStringAsFixed(2)}');
     csv.writeln('Transferencia,${totalTransferencia.toStringAsFixed(2)}');
     csv.writeln('Otro,${totalOtro.toStringAsFixed(2)}');
@@ -379,6 +402,8 @@ class _BalanceScreenState extends State<BalanceScreen> {
                         children: [
                           _row('Lavados',
                               Text('$totalLavados', style: _numStyle)),
+                          _row('Valor lavados',
+                              Text(fmt(valorLavados), style: _numStyle)),
                           _row('Efectivo',
                               Text(fmt(totalEfectivo), style: _numStyle)),
                           _row('Transferencia',

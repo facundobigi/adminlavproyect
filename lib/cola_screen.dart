@@ -40,6 +40,11 @@ class _ColaScreenState extends State<ColaScreen> {
           .collection('users')
           .doc(widget.tenantId)
           .collection('servicios');
+  CollectionReference<Map<String, dynamic>> get _contadoresCol =>
+      FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.tenantId)
+          .collection('contadores');
 
   bool _isBusy(String id) => _busy.contains(id);
   Future<void> _guard(Future<void> Function() f, String id) async {
@@ -86,6 +91,9 @@ class _ColaScreenState extends State<ColaScreen> {
     final s = secs % 60;
     return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
+
+  String _fechaKey(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}${d.month.toString().padLeft(2, '0')}${d.day.toString().padLeft(2, '0')}';
 
   String _errorOperacion(Object e) {
     if (e is FirebaseException) {
@@ -165,10 +173,44 @@ class _ColaScreenState extends State<ColaScreen> {
 
   Future<void> _marcarListo(
       QueryDocumentSnapshot<Map<String, dynamic>> doc) async {
-    await doc.reference.update({
-      'estado': 'listo',
-      'finished_at': FieldValue.serverTimestamp(),
-      'puesto': null,
+    final key = _fechaKey(DateTime.now());
+    final counterRef = _contadoresCol.doc('lavados_$key');
+
+    await FirebaseFirestore.instance.runTransaction((tx) async {
+      final orderSnap = await tx.get(doc.reference);
+      final data = orderSnap.data();
+      if (data == null || data['estado'] != 'en_lavado') {
+        throw StateError('La orden ya no esta en lavado.');
+      }
+
+      final currentNumber = (data['lavado_numero'] as num?)?.toInt();
+      final int lavadoNumero;
+
+      if (currentNumber != null && currentNumber > 0) {
+        lavadoNumero = currentNumber;
+      } else {
+        final counterSnap = await tx.get(counterRef);
+        final ultimo = (counterSnap.data()?['ultimo'] as num?)?.toInt() ?? 0;
+        lavadoNumero = ultimo + 1;
+        tx.set(
+          counterRef,
+          {
+            'ultimo': lavadoNumero,
+            'fecha_key': key,
+            'updated_at': FieldValue.serverTimestamp(),
+          },
+          SetOptions(merge: true),
+        );
+      }
+
+      tx.update(doc.reference, {
+        'estado': 'listo',
+        'finished_at': FieldValue.serverTimestamp(),
+        'puesto': null,
+        'lavado_fecha_key': key,
+        'lavado_numero': lavadoNumero,
+        'lavado_contado_at': FieldValue.serverTimestamp(),
+      });
     });
   }
 
@@ -271,6 +313,25 @@ class _ColaScreenState extends State<ColaScreen> {
     );
   }
 
+  Widget _lavadoChip(int n) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: kPrimary.withValues(alpha: .08),
+        border: Border.all(color: kPrimary.withValues(alpha: .18)),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        'Lavado #$n',
+        style: const TextStyle(
+          fontSize: 12,
+          color: kPrimary,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
   Widget _orderCard(QueryDocumentSnapshot<Map<String, dynamic>> d) {
     final x = d.data();
     final cli = _asMapDyn(x['cliente_snapshot'] ?? x['cliente'] ?? {});
@@ -289,6 +350,7 @@ class _ColaScreenState extends State<ColaScreen> {
     final srv = (x['servicio'] ?? '') as String;
     final estado = (x['estado'] ?? '') as String;
     final totalMin = _duracionDeOrden(x);
+    final lavadoNumero = (x['lavado_numero'] as num?)?.toInt();
 
     int? secs;
     String timeLabel = '';
@@ -360,6 +422,7 @@ class _ColaScreenState extends State<ColaScreen> {
                                     fontSize: 12, color: Colors.black87)),
                           ]),
                         _stateChip(estado),
+                        if (lavadoNumero != null) _lavadoChip(lavadoNumero),
                       ],
                     ),
                     const SizedBox(height: 4),
